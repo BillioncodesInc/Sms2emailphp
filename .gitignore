@@ -1,0 +1,82 @@
+# Environment variables
+.env
+.env.local
+.env.*.local
+.env.production.local
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+pnpm-debug.log*
+
+# Dependencies
+node_modules/
+vendor/
+composer.lock
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+*.sublime-workspace
+*.sublime-project
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+.cache/
+*.cache
+
+# Credentials & secrets
+*.pem
+*.key
+*.cert
+credentials.json
+config.local.php
+secrets.json
+
+# Build outputs
+dist/
+build/
+out/
+.next/
+.nuxt/
+
+# OS files
+Thumbs.db
+desktop.ini
+
+# Docker
+.dockerignore
+docker-compose.override.yml
+
+# Testing
+coverage/
+.nyc_output/
+*.lcov
+
+# Production
+.vercel
+.render
+
+# Database
+*.sql
+*.sqlite
+*.sqlite3
+*.db
+
+# Backup files
+*.backup
+*.bak
+*.old

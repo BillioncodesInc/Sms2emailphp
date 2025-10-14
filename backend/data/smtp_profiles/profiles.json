@@ -1,0 +1,31 @@
+{
+  "profiles": [
+    [
+      "test_smtp_1760382406512_4cd23d71",
+      {
+        "id": "test_smtp_1760382406512_4cd23d71",
+        "name": "Test SMTP",
+        "host": "smtp.test.com",
+        "port": 587,
+        "secure": true,
+        "auth": {
+          "user": "test@test.com",
+          "pass": "d65cff42adb0307ee3052e5f71264340:1d4711dfd1a321d71f66fbc0c76a00d7"
+        },
+        "maxPerDay": null,
+        "priority": 5,
+        "enabled": true,
+        "tags": [],
+        "createdAt": "2025-10-13T19:06:46.532Z",
+        "lastUsed": null,
+        "stats": {
+          "totalSent": 0,
+          "failed": 0,
+          "todaySent": 0,
+          "lastReset": "2025-10-13T19:06:46.532Z"
+        }
+      }
+    ]
+  ],
+  "updated": "2025-10-13T19:06:46.532Z"
+}

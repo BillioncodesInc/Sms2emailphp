@@ -1,0 +1,6 @@
+{
+  "require": {
+    "orhanerday/open-ai": "^3.5",
+    "khill/fontawesomephp": "~2.0"
+  }
+}

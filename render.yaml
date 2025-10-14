@@ -1,0 +1,63 @@
+# Render.com Blueprint for SE Gateway PHP Sender
+# This file defines the infrastructure for automatic deployment
+
+services:
+  # Backend Service - Node.js API
+  - type: web
+    name: se-gateway-backend
+    env: node
+    region: oregon
+    plan: free
+    buildCommand: cd backend && npm install
+    startCommand: node backend/server/app.js
+    healthCheckPath: /
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: DEBUG
+        value: false
+      - key: SMTP_SERVICE
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: SMTP_SECURE
+        value: true
+      - key: ALLOWED_ORIGINS
+        sync: false
+
+  # Frontend Service - PHP Web Application
+  - type: web
+    name: se-gateway-frontend
+    env: docker
+    region: oregon
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /
+    envVars:
+      - key: BACKEND_URL
+        fromService:
+          type: web
+          name: se-gateway-backend
+          property: host
+      - key: PHP_ENV
+        value: production
+      - key: BACKEND_INTERNAL_URL
+        value: http://se-gateway-backend:10000
+
+# Auto-deploy on push to main branch
+branches:
+  - main
+  - master
+
+# Environment groups (optional - for shared env vars)
+# You can create these in Render dashboard
+envVarGroups:
+  - name: smtp-config
+    envVars:
+      - key: SMTP_SERVICE
+      - key: SMTP_USER
+      - key: SMTP_PASS
