@@ -3,7 +3,7 @@
 
 FROM php:8.1-apache
 
-# Install system dependencies including Node.js
+# Install system dependencies including Node.js and Chromium for puppeteer
 RUN apt-get update && apt-get install -y \
     curl \
     libpng-dev \
@@ -13,6 +13,15 @@ RUN apt-get update && apt-get install -y \
     unzip \
     gnupg \
     ca-certificates \
+    chromium \
+    chromium-sandbox \
+    fonts-liberation \
+    libnss3 \
+    libxss1 \
+    libappindicator3-1 \
+    libasound2 \
+    libatk-bridge2.0-0 \
+    libgtk-3-0 \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Node.js 20.x (LTS)
@@ -36,7 +45,11 @@ COPY . /var/www/html
 RUN composer install --no-dev --optimize-autoloader --no-interaction 2>/dev/null || true
 
 # Install Node.js dependencies for backend
-RUN cd backend && npm install --production
+# Skip Chromium download for puppeteer to save memory and time
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
+    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+RUN cd backend && npm install --production --no-optional \
+    && npm cache clean --force
 
 # Create logs and data directories
 RUN mkdir -p logs backend/data && chmod 777 logs backend/data
