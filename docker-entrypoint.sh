@@ -47,23 +47,39 @@ EOF
 
 echo "✓ Apache configuration updated"
 
-# Start Node.js backend in background
-echo "Starting Node.js backend on port 9090..."
+# Create a wrapper script to keep Node.js running
+cat > /usr/local/bin/start-backend.sh <<'BACKEND_SCRIPT'
+#!/bin/bash
 cd /var/www/html/backend
-node server/app.js &
+while true; do
+    echo "Starting Node.js backend on port 9090..."
+    node server/app.js
+    exit_code=$?
+    echo "Backend exited with code $exit_code. Restarting in 5 seconds..."
+    sleep 5
+done
+BACKEND_SCRIPT
+
+chmod +x /usr/local/bin/start-backend.sh
+
+# Start Node.js backend in background with nohup
+echo "Starting Node.js backend process..."
+nohup /usr/local/bin/start-backend.sh > /var/www/html/logs/backend.log 2>&1 &
 BACKEND_PID=$!
 
 # Wait for backend to be ready
 echo "Waiting for backend to start..."
-sleep 3
-
-# Check if backend is running
-if ps -p $BACKEND_PID > /dev/null; then
-    echo "✓ Backend started successfully (PID: $BACKEND_PID)"
-else
-    echo "✗ Backend failed to start"
-    exit 1
-fi
+for i in {1..15}; do
+    if curl -s http://localhost:9090/ > /dev/null 2>&1; then
+        echo "✓ Backend started successfully and responding on port 9090"
+        break
+    fi
+    if [ $i -eq 15 ]; then
+        echo "⚠ Backend taking longer than expected, but continuing..."
+        echo "Check logs at /var/www/html/logs/backend.log"
+    fi
+    sleep 1
+done
 
 # Start Apache in foreground
 echo "Starting Apache PHP frontend on port $PORT..."
