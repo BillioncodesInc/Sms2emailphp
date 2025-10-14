@@ -62,9 +62,10 @@ RUN a2enmod rewrite headers proxy proxy_http
 # This allows the PORT environment variable to be properly set
 RUN chown -R www-data:www-data /var/www/html
 
-# Copy and setup startup script
+# Copy and setup startup scripts
 COPY docker-entrypoint.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+COPY start-backend.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh /usr/local/bin/start-backend.sh
 
 # Expose port
 EXPOSE 8080

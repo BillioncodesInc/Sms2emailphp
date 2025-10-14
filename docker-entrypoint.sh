@@ -53,41 +53,33 @@ EOF
 
 echo "✓ Apache configuration updated"
 
-# Create a wrapper script to keep Node.js running
-# IMPORTANT: Use BACKEND_PORT instead of PORT to avoid conflict with Apache
-cat > /usr/local/bin/start-backend.sh <<BACKEND_SCRIPT
-#!/bin/bash
-cd /var/www/html/backend
-export PORT=$BACKEND_PORT
-while true; do
-    echo "Starting Node.js backend on port \$PORT..."
-    node server/app.js
-    exit_code=\$?
-    echo "Backend exited with code \$exit_code. Restarting in 5 seconds..."
-    sleep 5
-done
-BACKEND_SCRIPT
-
-chmod +x /usr/local/bin/start-backend.sh
-
 # Start Node.js backend in background with nohup
 echo "Starting Node.js backend process on port $BACKEND_PORT..."
-nohup /usr/local/bin/start-backend.sh > /var/www/html/logs/backend.log 2>&1 &
+cd /var/www/html/backend
+export PORT=$BACKEND_PORT
+nohup node server/app.js > /var/www/html/logs/backend.log 2>&1 &
 BACKEND_PID=$!
+echo "Backend started with PID: $BACKEND_PID"
 
 # Wait for backend to be ready
-echo "Waiting for backend to start..."
-for i in {1..15}; do
+echo "Waiting for backend to respond..."
+backend_ready=false
+for i in {1..30}; do
     if curl -s http://localhost:$BACKEND_PORT/ > /dev/null 2>&1; then
-        echo "✓ Backend started successfully and responding on port $BACKEND_PORT"
+        echo "✓ Backend is responding on port $BACKEND_PORT"
+        backend_ready=true
         break
     fi
-    if [ $i -eq 15 ]; then
-        echo "⚠ Backend taking longer than expected, but continuing..."
-        echo "Check logs at /var/www/html/logs/backend.log"
-    fi
-    sleep 1
+    echo "  Attempt $i/30: Backend not ready yet..."
+    sleep 2
 done
+
+if [ "$backend_ready" = false ]; then
+    echo "⚠ Backend did not respond after 60 seconds"
+    echo "Backend logs (last 50 lines):"
+    tail -n 50 /var/www/html/logs/backend.log || echo "No backend logs available"
+    echo "Continuing anyway - check /var/www/html/logs/backend.log for errors"
+fi
 
 # Start Apache in foreground
 echo "Starting Apache PHP frontend on port $APACHE_PORT..."
