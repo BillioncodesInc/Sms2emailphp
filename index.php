@@ -112,10 +112,8 @@
             <h3 class="title">SMTP Config Form</h3>
             <p class="description">Enter config details here</p>
             <div id="smtpapiresponse"></div>
-            <div class="form-group">
-              <span class="input-icon"><i class="fa fa-link"></i></span>
-              <input type="url" class="form-control" placeholder="API" id="smtpapi">
-            </div>
+            <!-- API auto-configured -->
+            <input type="hidden" id="smtpapi" value="/api">
             <div id="myServices" style="font-size:12px">
               <select class="skbox" name="nodeservices" id="nodeservices">
                 <option value="">--Please choose a Service--</option>
@@ -173,10 +171,8 @@
             <h3 class="title">Add Proxies Form</h3>
             <p class="description">Enter a list of proxies.</p>
             <div id="proxyres" style="font-size:18px"></div>
-            <div class="form-group">
-              <span class="input-icon"><i class="fa fa-link"></i></span>
-              <input type="url" class="form-control" placeholder="API" id="proxyapi">
-            </div>
+            <!-- API auto-configured -->
+            <input type="hidden" id="proxyapi" value="/api">
             <div class="form-group" style="display: flex;">
               <div style="margin-right: 10px;">
                 <input type="radio" id="http" name="protocol" value="http">
@@ -200,12 +196,9 @@
       </div>
     </div>
 
-    <label>SENDER SERVER</label>
-    <div class="skbox">
-      <input type="" id="api" name="api" placeholder="HTTPS://XXXXXXXXXXXXXXXXXXXXX" value="<?php if(isset($_COOKIE['twilio_Api_stored'])){echo htmlspecialchars($_COOKIE['twilio_Api_stored'], ENT_QUOTES, 'UTF-8');}?>">
-      <div onclick="checkapi()">TEST</div>
-      <span id="ModalMsg">RESULTS</span>
-    </div>
+    <!-- SENDER SERVER - Auto-configured (backend runs on same server) -->
+    <input type="hidden" id="api" name="api" value="/api">
+    <!-- API automatically set to /api (proxied to Node.js backend) -->
 
     <div class="skbox" id="carrierlist" style="display:block;">
       <label>CARRIER</label>

@@ -25,6 +25,10 @@ chmod 777 /var/www/html/logs
 
 # Configure Apache with the actual PORT value at runtime
 echo "Configuring Apache to listen on port $APACHE_PORT..."
+
+# Set global ServerName to suppress warning
+echo "ServerName localhost" >> /etc/apache2/apache2.conf
+
 cat > /etc/apache2/ports.conf <<EOF
 Listen $APACHE_PORT
 EOF
