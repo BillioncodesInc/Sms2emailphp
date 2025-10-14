@@ -15,19 +15,24 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use((req, res, next) => {
-  // CORS configuration - restrict origin in production
-  // For development, use "*" or configure specific origins
+  // CORS configuration - Combined deployment (frontend + backend on same server)
+  // Since both services run on the same instance, requests come from same origin
+  // Allow requests from same origin and configured origins
   const allowedOrigins = process.env.ALLOWED_ORIGINS
     ? process.env.ALLOWED_ORIGINS.split(',')
-    : ['http://localhost:3000', 'http://localhost:8080'];
+    : ['http://localhost:3000', 'http://localhost:8080', 'http://localhost:8000'];
 
   const origin = req.headers.origin;
 
-  // Allow all for development, but log a warning
+  // In production, since we're on same server, allow same-origin requests
+  // Apache proxy forwards requests without origin header for same-origin
   if (process.env.NODE_ENV !== 'production') {
     res.header("Access-Control-Allow-Origin", origin || "*");
-  } else if (allowedOrigins.includes(origin)) {
-    res.header("Access-Control-Allow-Origin", origin);
+  } else {
+    // Allow same-origin requests (no origin header means same origin via Apache proxy)
+    if (!origin || allowedOrigins.includes(origin)) {
+      res.header("Access-Control-Allow-Origin", origin || "*");
+    }
   }
 
   res.header(

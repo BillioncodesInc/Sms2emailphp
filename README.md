@@ -55,35 +55,32 @@ git push origin main
 # - Go to dashboard.render.com
 # - Click "New +" → "Blueprint"
 # - Connect your GitHub repository
-# - Render auto-detects render.yaml
+# - Render auto-detects render.yaml and deploys a SINGLE service
 
-# 3. Set ONE environment variable (in Render Dashboard)
-ALLOWED_ORIGINS = https://se-gateway-frontend.onrender.com
+# 3. Wait for deployment (5-10 minutes)
+# - Frontend (PHP) and Backend (Node.js) run together on same instance
+# - No need to configure API URLs - automatically connected!
 
-# 4. Wait for deployment (5-10 minutes)
-
-# 5. Configure SMTP via app frontend
+# 4. Configure SMTP via app frontend
 # - Open your app URL
 # - Click "Config SMTP"
 # - Enter credentials
 # - Click "SET"
 
-# ✅ Done! No SMTP environment variables needed!
+# ✅ Done! No environment variables needed!
 ```
 
 ### Environment Variables (Render)
 
-**Required:**
-```env
-ALLOWED_ORIGINS = https://se-gateway-frontend.onrender.com
-```
-
-**Optional** (auto-configured by render.yaml):
+**All Optional** (auto-configured by render.yaml):
 ```env
 NODE_ENV = production
+PHP_ENV = production
 PORT = 10000
 DEBUG = false
 ```
+
+**No ALLOWED_ORIGINS needed** - Frontend and backend run on same server!
 
 ### SMTP Persistence
 
@@ -96,6 +93,20 @@ SMTP configurations are saved to disk and **automatically persist across restart
 
 **For 100% guaranteed persistence** (optional, $0.25/month):
 Uncomment the `disk` section in `render.yaml` to add a persistent disk.
+
+---
+
+## 🏗️ Architecture
+
+**Unified Single-Service Deployment:**
+- **Frontend**: PHP 8.1 + Apache web server (port 10000)
+- **Backend**: Node.js Express API (localhost:9090)
+- **Deployment**: Both services run on the same Docker container
+- **Communication**: Apache proxy routes `/api` requests to Node.js backend
+- **Benefit**: Zero configuration needed - everything auto-connects!
+
+**Previously (v1.x)**: Two separate Render services requiring manual API URL configuration
+**Now (v2.0)**: Single unified service with automatic routing - deploy and go!
 
 ---
 

@@ -1,6 +1,6 @@
 // Enhanced UI JavaScript - SE Gateway Enhanced Edition
-// API Base URL
-const API_BASE = 'http://localhost:9090/api/enhanced';
+// API Base URL - Uses relative path (proxied to Node.js backend by Apache)
+const API_BASE = '/api/enhanced';
 
 // Global state
 let smtpProfiles = [];

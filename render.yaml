@@ -1,34 +1,18 @@
 services:
-  # Backend Service - Node.js API
+  # Combined Service - PHP Frontend + Node.js Backend
   - type: web
-    name: se-gateway-backend
-    runtime: node
-    region: oregon
-    plan: free
-    buildCommand: cd backend && npm install
-    startCommand: node backend/server/app.js
-    healthCheckPath: /
-    envVars:
-      - key: NODE_ENV
-        value: production
-      - key: PORT
-        value: 10000
-      - key: DEBUG
-        value: false
-      - key: ALLOWED_ORIGINS
-        value: https://se-gateway-frontend.onrender.com
-
-  # Frontend Service - PHP Web Application
-  - type: web
-    name: se-gateway-frontend
+    name: se-gateway
     runtime: docker
     region: oregon
     plan: free
     dockerfilePath: ./Dockerfile
+    healthCheckPath: /
     envVars:
-      - key: BACKEND_URL
-        value: https://se-gateway-backend.onrender.com
+      - key: NODE_ENV
+        value: production
       - key: PHP_ENV
         value: production
-      - key: BACKEND_INTERNAL_URL
-        value: http://se-gateway-backend:10000
+      - key: DEBUG
+        value: false
+      - key: PORT
+        value: 10000
