@@ -39,6 +39,12 @@ A military-grade SMS and Email gateway application with **unified interface**, a
 
 ## 🚀 Deploy to Render.com (Production)
 
+### Recommended Plan: Starter ($25/month)
+- **2 GB RAM** - Handles concurrent requests smoothly
+- **1 vCPU** - Fast processing for SMTP operations
+- **No spin-down** - Always available, no cold starts
+- **Faster builds** - Deployment completes in ~5 minutes
+
 ### One-Click Deploy
 
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy)

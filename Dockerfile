@@ -57,28 +57,9 @@ RUN mkdir -p logs backend/data && chmod 777 logs backend/data
 # Enable Apache modules including proxy for backend API
 RUN a2enmod rewrite headers proxy proxy_http
 
-# Configure Apache for Render's PORT environment variable with proxy to Node.js backend
-RUN echo 'Listen ${PORT:-8080}' > /etc/apache2/ports.conf && \
-    echo '<VirtualHost *:${PORT:-8080}>\n\
-    ServerAdmin webmaster@localhost\n\
-    DocumentRoot /var/www/html\n\
-    ErrorLog ${APACHE_LOG_DIR}/error.log\n\
-    CustomLog ${APACHE_LOG_DIR}/access.log combined\n\
-    \n\
-    # Proxy API requests to Node.js backend on port 9090\n\
-    ProxyPreserveHost On\n\
-    ProxyPass /api http://localhost:9090/api\n\
-    ProxyPassReverse /api http://localhost:9090/api\n\
-    \n\
-    <Directory /var/www/html>\n\
-        Options Indexes FollowSymLinks\n\
-        AllowOverride All\n\
-        Require all granted\n\
-        DirectoryIndex index.php index.html\n\
-    </Directory>\n\
-</VirtualHost>' > /etc/apache2/sites-available/000-default.conf
-
 # Set proper permissions
+# Note: Apache configuration is done at runtime in docker-entrypoint.sh
+# This allows the PORT environment variable to be properly set
 RUN chown -R www-data:www-data /var/www/html
 
 # Copy and setup startup script
