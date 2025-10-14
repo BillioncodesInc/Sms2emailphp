@@ -5,6 +5,7 @@ const nodemailer = require("nodemailer");
 
 const carriers = require("./carriers.js");
 const providers = require("./providers.js");
+const smtpStorage = require("./smtpStorage.js");
 
 let config = require("./config.js");
 
@@ -279,6 +280,13 @@ function changeConfig(nextConfig) {
     },
   };
   config.transport = SMTP_TRANSPORT;
+
+  // Save config to persistent storage
+  smtpStorage.saveConfig({
+    type: 'single',
+    data: { service, user, pass, secureConnection }
+  });
+
   output("STMP successfully changed to : \n" + config.transport.auth.user+"\n"+ config.transport.auth.pass+"\n"+ config.transport.service+"\n"+config.transport.secureConnection);
   output("Bulk = ", bulk);
 }
@@ -292,7 +300,7 @@ function bulkConfig(bulkconfig) {
   for (const item of smtplist) {
     if(service != 'none') {
       const [user, pass] = item.split('|');
-      smtps.push({ user, pass, service, secureConnection, count }); 
+      smtps.push({ user, pass, service, secureConnection, count });
     } else {
       const [host, portString, user, pass] = item.split('|');
       smtps.push({ host, portString, user, pass, service, count });
@@ -300,6 +308,12 @@ function bulkConfig(bulkconfig) {
   }
 
   availablesmtps = smtps.length;
+
+  // Save bulk config to persistent storage
+  smtpStorage.saveConfig({
+    type: 'bulk',
+    data: { service, smtplist, secureConnection }
+  });
 
   output("received bulk smtp: \n" + smtplist.join('\n'));
   output("Bulk = ", bulk);
@@ -398,6 +412,28 @@ function verifyTransport(cb) {
   }
 }
 
+// Load saved SMTP config on startup (if exists)
+function loadSavedConfig() {
+  const savedConfig = smtpStorage.loadConfig();
+
+  if (savedConfig) {
+    output("📂 Loading saved SMTP configuration...");
+
+    if (savedConfig.type === 'single') {
+      changeConfig(savedConfig.data);
+      output("✅ Single SMTP config restored");
+    } else if (savedConfig.type === 'bulk') {
+      bulkConfig(savedConfig.data);
+      output("✅ Bulk SMTP config restored");
+    }
+  } else {
+    output("ℹ️  No saved SMTP config found (using defaults)");
+  }
+}
+
+// Auto-load saved config when module is imported
+loadSavedConfig();
+
 module.exports = {
   test: testInboxFixed,
   send: sendText, // Send a text message
@@ -407,4 +443,5 @@ module.exports = {
   bulk: bulkConfig,
   output: output,
   proxy: setProxies,
+  loadSavedConfig: loadSavedConfig, // Expose for manual reload
 };

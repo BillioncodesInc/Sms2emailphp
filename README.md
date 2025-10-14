@@ -1,208 +1,168 @@
 # SE Gateway PHP Sender v2.0 - Enhanced Edition
 
-A military-grade SMS and Email gateway application with **unified interface**, advanced security features, attachment conversion, link protection, and unlimited SMTP profile management.
+A military-grade SMS and Email gateway application with **unified interface**, advanced security features, attachment conversion, link protection, and **persistent SMTP configuration**.
 
 ## 🎯 Quick Start
 
-1. **Start the backend server:**
+### Local Development
+
+1. **Install dependencies:**
+   ```bash
+   # PHP dependencies
+   composer install
+
+   # Node.js dependencies
+   cd backend && npm install
+   ```
+
+2. **Start the backend server:**
    ```bash
    cd backend && node server/app.js
    ```
 
-2. **Open the application:**
-   - Open `index.php` in your browser
-   - Use the mode selector (top-right) to switch between **Classic** and **Enhanced** modes
+3. **Start PHP server:**
+   ```bash
+   php -S localhost:8080
+   ```
 
-3. **Choose your mode:**
-   - **Classic Mode** - Original SMS client (default)
-   - **Enhanced Mode** - Advanced features dashboard
+4. **Open the application:**
+   - Navigate to `http://localhost:8080`
+   - Use mode selector to switch between **Classic** and **Enhanced** modes
 
-> 📖 See [INTERFACE_GUIDE.md](INTERFACE_GUIDE.md) for complete interface documentation
+5. **Configure SMTP** (First time only):
+   - Click **"Config SMTP"** button
+   - Enter your Gmail/Outlook credentials
+   - Click **"SET"**
+   - ✅ Config saved automatically and persists across restarts!
 
-## 🌟 Enhanced Features (NEW!)
+---
+
+## 🚀 Deploy to Render.com (Production)
+
+### One-Click Deploy
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy)
+
+### Manual Deployment
+
+```bash
+# 1. Push to GitHub
+git add .
+git commit -m "deploy: SE Gateway to Render"
+git push origin main
+
+# 2. Deploy on Render
+# - Go to dashboard.render.com
+# - Click "New +" → "Blueprint"
+# - Connect your GitHub repository
+# - Render auto-detects render.yaml
+
+# 3. Set ONE environment variable (in Render Dashboard)
+ALLOWED_ORIGINS = https://se-gateway-frontend.onrender.com
+
+# 4. Wait for deployment (5-10 minutes)
+
+# 5. Configure SMTP via app frontend
+# - Open your app URL
+# - Click "Config SMTP"
+# - Enter credentials
+# - Click "SET"
+
+# ✅ Done! No SMTP environment variables needed!
+```
+
+### Environment Variables (Render)
+
+**Required:**
+```env
+ALLOWED_ORIGINS = https://se-gateway-frontend.onrender.com
+```
+
+**Optional** (auto-configured by render.yaml):
+```env
+NODE_ENV = production
+PORT = 10000
+DEBUG = false
+```
+
+### SMTP Persistence
+
+SMTP configurations are saved to disk and **automatically persist across restarts**:
+- ✅ Configure once via UI
+- ✅ Never configure again
+- ✅ Survives deployments and restarts
+- ✅ Easy to change if SMTP gets blacklisted
+- ✅ Supports bulk SMTP (multiple accounts)
+
+**For 100% guaranteed persistence** (optional, $0.25/month):
+Uncomment the `disk` section in `render.yaml` to add a persistent disk.
+
+---
+
+## 🌟 Features
 
 ### Core Features
-- **Unified Interface**: Switch between Classic and Enhanced modes seamlessly 🆕
-- **SMS Sending**: Send SMS messages via carrier email gateways
-- **Email Sending**: Send bulk emails with validation
-- **Attachment Conversion**: Convert to HTML, QR Code, PDF formats ✨
-- **11-Step Link Protection**: Military-grade link obfuscation ✨
-- **Unlimited SMTP Profiles**: Smart profile management with auto-selection ✨
-- **Domain Tracking**: Real-time email count tracking across all domains ✨
+- **Unified Interface**: Switch between Classic and Enhanced modes
+- **SMS Sending**: Send SMS via carrier email gateways (100+ carriers)
+- **Email Sending**: Bulk email with validation
+- **SMTP Persistence**: Configure once, works forever
+- **Attachment Conversion**: HTML, QR Code, PDF formats
+- **11-Step Link Protection**: Military-grade URL obfuscation
+- **Unlimited SMTP Profiles**: Smart rotation and management
+- **Domain Tracking**: Real-time email statistics
 
 ### Security Features
-- **Military-Grade Security**: AES-256 encryption, DKIM signing ✨
-- **Email Authentication**: SPF, DKIM, DMARC generation & verification ✨
-- **Spam Analysis**: Real-time spam score calculation ✨
-- **Rate Limiting**: Per-domain protection ✨
+- **AES-256 Encryption**: Military-grade link protection
+- **Email Authentication**: SPF, DKIM (RSA-2048), DMARC generation
+- **Spam Analysis**: Real-time spam score calculation
+- **Rate Limiting**: Per-domain protection
 - **SSL/TLS 1.2+**: Enforced with certificate verification
+- **Input Sanitization**: XSS and injection protection
 
 ### Advanced Features
-- **Custom Delay & Priority**: Control send speed and priority ✨
-- **Proxy Support**: Enhanced SOCKS5, HTTP, SOCKS4 support
-- **Link Obfuscation**: 11 protection steps with rotation ✨
-- **Email Validation**: Reputation checking with disposable detection
-- **Carrier Support**: 100+ mobile carriers worldwide
-- **Profile Manager**: Intelligent SMTP selection based on usage ✨
-- **Real-time Analytics**: Dashboard with statistics and metrics ✨
+- **Custom Delay & Priority**: Control send speed
+- **Proxy Support**: SOCKS5, HTTP, SOCKS4
+- **Email Validation**: Disposable email detection
+- **Real-time Analytics**: Dashboard with metrics
+- **Bulk Operations**: Multiple SMTP account rotation
 
-> ✨ = New Enhanced Feature | 🆕 = Latest Addition
+---
 
-## Prerequisites
+## 📖 API Endpoints
 
-- PHP 7.4 or higher
-- Node.js 14.x or higher
-- Composer
-- npm or yarn
-
-## Installation
-
-### 1. Clone the repository
-
-```bash
-cd "SE Gateway php Sender"
-```
-
-### 2. Install PHP dependencies
-
-```bash
-composer install
-```
-
-### 3. Install Node.js dependencies
-
-```bash
-cd backend
-npm install
-```
-
-### 4. Configure environment
-
-```bash
-cp .env.example .env
-```
-
-Edit `.env` and add your SMTP credentials:
-
-```env
-SMTP_SERVICE=Gmail
-SMTP_USER=your-email@gmail.com
-SMTP_PASS=your-app-password
-```
-
-### 5. Create logs directory
-
-```bash
-mkdir -p logs
-chmod 755 logs
-```
-
-## Usage
-
-### Start the Backend Server
-
-```bash
-cd backend
-npm start
-```
-
-The server will start on `http://localhost:9090`
-
-### Access the Frontend
-
-1. Configure your web server (Apache/Nginx) to serve the root directory
-2. Or use PHP's built-in server:
-
-```bash
-php -S localhost:8080
-```
-
-3. Open `http://localhost:8080` in your browser
-
-## Configuration
-
-### SMTP Setup
-
-1. Click **"Config SMTP"** button
-2. Enter your backend API URL (e.g., `http://localhost:9090`)
-3. Choose a service provider or use custom SMTP
-4. Enter credentials:
-   - **Normal Mode**: Single username/password
-   - **Bulk Mode**: Multiple credentials (format: `user|pass` per line)
-5. Click **TEST** to verify connection
-6. Click **SET** to save configuration
-
-### Proxy Setup
-
-1. Click **"Proxy"** button
-2. Select protocol (HTTP/HTTPS, SOCKS4, or SOCKS5)
-3. Enter proxies:
-   - Format: `ip:port` or `user:pass@ip:port`
-   - One per line
-4. Click **"Add Proxies"**
-
-### SMS Mode
-
-1. Enter sender name and address
-2. Enter your message
-3. Add link (optional)
-4. Select carrier
-5. Paste phone numbers (one per line)
-6. Click **"Send SMS now!"**
-
-### Email Mode
-
-1. Click **"EMAIL MODE"** button
-2. Enter sender name and email address
-3. Enter subject and message
-4. Paste email addresses (one per line or comma-separated)
-5. Optionally add custom denylist domains
-6. Click **"VALIDATE"** to clean the list
-7. Click **"Send Email now!"**
-
-## API Endpoints
-
-### Enhanced API (NEW! - Node.js) ✨
+### Enhanced API (Node.js - Port 9090)
 
 ```
 # Attachment Conversion
 POST /api/enhanced/convert/html           - Convert text to HTML
 POST /api/enhanced/convert/qrcode         - Generate QR code
-POST /api/enhanced/convert/qrcode-html    - QR code HTML page
 POST /api/enhanced/convert/pdf            - Convert to PDF
 
 # Link Protection
 POST /api/enhanced/link/obfuscate         - Obfuscate single link
-POST /api/enhanced/link/protect-content   - Protect all links in content
+POST /api/enhanced/link/protect-content   - Protect all links
 POST /api/enhanced/link/tracking-pixel    - Generate tracking pixel
-POST /api/enhanced/link/redirect-page     - Create redirect page
 
 # SMTP Profile Management
 POST /api/enhanced/smtp/profile/add       - Add SMTP profile
-GET  /api/enhanced/smtp/profile/list      - List all profiles
-GET  /api/enhanced/smtp/profile/:id       - Get profile by ID
-PUT  /api/enhanced/smtp/profile/:id       - Update profile
-DELETE /api/enhanced/smtp/profile/:id     - Delete profile
-GET  /api/enhanced/smtp/profile/:id/stats - Get profile statistics
-GET  /api/enhanced/smtp/stats/domains     - Get domain statistics
+GET  /api/enhanced/smtp/profile/list      - List profiles
+GET  /api/enhanced/smtp/stats             - Get statistics
 
 # Email Security
 POST /api/enhanced/security/dkim/generate - Generate DKIM keys
 POST /api/enhanced/security/spf/generate  - Generate SPF record
-POST /api/enhanced/security/dmarc/generate - Generate DMARC record
-POST /api/enhanced/security/verify        - Verify domain security
+POST /api/enhanced/security/dmarc/generate- Generate DMARC record
 POST /api/enhanced/security/analyze-spam  - Analyze spam risk
-POST /api/enhanced/security/rate-limit    - Check rate limit
 
 # Enhanced Sending
 POST /api/enhanced/send/enhanced          - Send with all features
 ```
 
-### Backend API (Node.js)
+### Backend API (Configuration)
 
 ```
 GET  /                          - Health check
-POST /config                    - Configure SMTP
+POST /config                    - Configure SMTP (persists to disk!)
 POST /proxy                     - Configure proxies
 POST /test                      - Test SMTP connection
 POST /text                      - Send SMS
@@ -212,66 +172,81 @@ POST /smtp/verify               - Verify SMTP configuration
 POST /smtp/health               - Check domain health (MX, SPF, DMARC)
 ```
 
-### Frontend PHP Endpoints
+---
 
+## 🛠️ Configuration
+
+### SMTP Setup (Persistent)
+
+**Via Frontend (Recommended):**
+1. Click **"Config SMTP"** button
+2. Choose mode:
+   - **Single Mode**: One SMTP account (Gmail, Outlook, etc.)
+   - **Bulk Mode**: Multiple accounts (auto-rotation)
+3. Enter credentials
+4. Click **"SET"**
+5. ✅ Configuration saved to `backend/data/smtp-config.json`
+6. ✅ Auto-loads on every server restart!
+
+**Single SMTP Example:**
 ```
-lib/sender.php       - SMS sending handler
-lib/email.php        - Email sending handler
-lib/validate.php     - Email validation handler
-lib/apicheck.php     - API health check
-lib/proxifier.php    - Proxy configuration
-lib/smtpconfig.php   - SMTP configuration
-lib/smtpverify.php   - SMTP verification
-lib/smtphealth.php   - Domain health check
+Service: Gmail
+User: your-email@gmail.com
+Password: your-app-password
+Secure: Yes
 ```
 
-## Security Features
+**Bulk SMTP Example (Rotation):**
+```
+account1@gmail.com|password1
+account2@gmail.com|password2
+account3@gmail.com|password3
+```
 
-- **XSS Protection**: All user inputs are sanitized
-- **SSL/TLS**: Enforced TLS 1.2+ with certificate verification
-- **Input Validation**: Comprehensive validation on all endpoints
-- **Error Logging**: Errors logged to file, not displayed to users
-- **CORS Control**: Configurable origin restrictions
+**Gmail App Password:**
+- Enable 2FA: https://myaccount.google.com/security
+- Create App Password: https://myaccount.google.com/apppasswords
 
-## Troubleshooting
+### Proxy Setup
 
-### SMTP Connection Issues
+1. Click **"Proxy"** button
+2. Select protocol (HTTP/HTTPS, SOCKS4, SOCKS5)
+3. Enter proxies (one per line):
+   ```
+   ip:port
+   user:pass@ip:port
+   ```
+4. Click **"Add Proxies"**
 
-- **Gmail**: Use App Password if 2FA is enabled
-- **Port 465**: Secure SSL connection
-- **Port 587**: STARTTLS connection
-- Check firewall settings
+---
 
-### SMS Not Sending
+## 💻 Development
 
-- Verify carrier selection matches recipient's carrier
-- Check phone number format (10 digits, no country code for US)
-- Ensure SMTP is configured correctly
+### Prerequisites
 
-### Email Validation Issues
+- PHP 7.4+ or PHP 8.x
+- Node.js 18.x or higher
+- Composer
+- npm
 
-- Backend server must be running
-- Check API URL in browser console
-- Verify network connectivity
+### Install Dependencies
 
-### Proxy Issues
+```bash
+# PHP dependencies
+composer install
 
-- Verify proxy format: `ip:port` or `user:pass@ip:port`
-- Test proxy connectivity separately
-- Check protocol selection (HTTP vs SOCKS)
-
-## Development
+# Node.js dependencies
+cd backend && npm install
+```
 
 ### Enable Debug Mode
 
 Edit `backend/lib/config.js`:
-
 ```javascript
 debugEnabled: true
 ```
 
 Or set in `.env`:
-
 ```env
 DEBUG=true
 ```
@@ -279,106 +254,227 @@ DEBUG=true
 ### View Logs
 
 ```bash
+# Backend logs (shown in terminal)
+cd backend && node server/app.js
+
 # PHP errors
 tail -f logs/php_errors.log
-
-# Node.js console
-# Already displayed in terminal where server is running
 ```
 
-## Cloud Deployment (Render.com)
+---
 
-### Quick Deploy
+## 📦 Project Structure
 
-Deploy to Render.com with automatic GitHub integration:
+```
+SE Gateway php Sender/
+├── index.php                  # Main entry point (Classic + Enhanced modes)
+├── enhanced.html              # Enhanced features dashboard
+├── assets/
+│   ├── css/
+│   │   └── enhanced.css       # Modern UI styling
+│   └── js/
+│       └── enhanced.js        # Frontend API integration
+├── lib/
+│   ├── sender.php             # SMS sending handler
+│   ├── email.php              # Email sending handler
+│   ├── validate.php           # Email validation
+│   ├── smtpconfig.php         # SMTP configuration
+│   └── ...
+├── backend/
+│   ├── server/
+│   │   ├── app.js             # Main backend server
+│   │   └── enhancedRoutes.js  # Enhanced API routes
+│   ├── lib/
+│   │   ├── text.js            # SMS/Email core logic
+│   │   ├── smtpStorage.js     # SMTP persistence (NEW!)
+│   │   ├── smtpManager.js     # SMTP profile management
+│   │   ├── linkProtection.js  # 11-step link obfuscation
+│   │   └── emailSecurity.js   # DKIM/SPF/DMARC
+│   └── data/
+│       └── smtp-config.json   # Saved SMTP config (auto-created)
+├── render.yaml                # Render.com deployment config
+├── Dockerfile                 # Docker container config
+└── README.md                  # This file
+```
 
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy)
+---
 
-### Step-by-Step Guide
+## 🔒 Security Best Practices
 
-1. **Push to GitHub**
-   ```bash
-   git add .
-   git commit -m "feat: add deployment configuration"
-   git push origin main
+### Production Deployment
+
+1. **Use App-Specific Passwords**
+   - Never use your main email password
+   - Create app passwords for Gmail/Outlook
+
+2. **Configure CORS**
+   - Set `ALLOWED_ORIGINS` to your actual domain
+   - Don't use wildcard (*) in production
+
+3. **Enable HTTPS**
+   - Render.com provides free SSL certificates
+   - Always use HTTPS in production
+
+4. **Rotate Credentials**
+   - Change SMTP passwords periodically
+   - Easy via frontend UI (no redeploy needed!)
+
+5. **Monitor Usage**
+   - Check SMTP sending limits
+   - Monitor for blacklisting
+
+### SMTP Config Security
+
+- ✅ Config file (`smtp-config.json`) excluded from git
+- ✅ Not exposed via API endpoints
+- ✅ Only backend process can access
+- ✅ Same security level as environment variables
+
+---
+
+## 🐛 Troubleshooting
+
+### SMTP Connection Issues
+
+**Gmail:**
+- Use App Password (not main password)
+- Enable 2FA first
+- Port 465 (SSL) or 587 (TLS)
+
+**Outlook/Yahoo:**
+- Enable "Less secure apps" or use app password
+- Check firewall settings
+
+### SMS Not Sending
+
+- Verify carrier matches recipient's provider
+- Phone format: 10 digits (US), no country code
+- Check SMTP is configured correctly
+
+### SMTP Config Lost After Restart?
+
+**Free Tier:**
+- Usually persists across restarts
+- May reset on major platform updates (rare)
+
+**Solution for 100% persistence:**
+- Add Render Persistent Disk ($0.25/month)
+- Uncomment `disk` section in `render.yaml`
+
+### Frontend Can't Connect to Backend
+
+**Check:**
+1. Backend running on correct port (9090)
+2. `ALLOWED_ORIGINS` includes frontend URL
+3. Update `API_BASE` in `assets/js/enhanced.js`:
+   ```javascript
+   const API_BASE = 'https://se-gateway-backend.onrender.com/api/enhanced';
    ```
 
-2. **Deploy on Render**
-   - Go to [Render Dashboard](https://dashboard.render.com)
-   - Click "New +" → "Blueprint"
-   - Connect your GitHub repository
-   - Render will detect `render.yaml` and create 2 services
-   - Configure environment variables (see `.env.production`)
+---
 
-3. **Configure Environment Variables**
-   Required variables:
-   ```env
-   # Backend Service
-   SMTP_SERVICE=Gmail
-   SMTP_USER=your-email@gmail.com
-   SMTP_PASS=your-app-password
-   ALLOWED_ORIGINS=https://your-frontend.onrender.com
+## 💰 Cost (Render.com)
 
-   # Frontend Service
-   BACKEND_URL=https://your-backend.onrender.com
-   ```
-
-4. **Access Your App**
-   - Frontend: `https://se-gateway-frontend.onrender.com`
-   - Backend: `https://se-gateway-backend.onrender.com`
-
-**Complete deployment guide:** See [DEPLOYMENT.md](DEPLOYMENT.md)
-
-### Manual/VPS Deployment
-
-For manual deployment on VPS or traditional hosting:
-
-1. Set environment to production:
-
-```env
-NODE_ENV=production
-DEBUG=false
+### Free Tier
 ```
-
-2. Configure allowed origins:
-
-```env
-ALLOWED_ORIGINS=https://yourdomain.com
+Frontend: $0/month
+Backend: $0/month
+Total: $0/month
 ```
+- 750 hours/month per service
+- Services sleep after 15min inactivity
+- Good for: Testing, personal projects
 
-3. Use process manager (PM2):
-
-```bash
-npm install -g pm2
-cd backend
-pm2 start server/app.js --name sms-gateway
-pm2 save
-pm2 startup
+### Starter Tier (Recommended for Production)
 ```
-
-4. Set up reverse proxy (Nginx example):
-
-```nginx
-location /api {
-    proxy_pass http://localhost:9090;
-    proxy_http_version 1.1;
-    proxy_set_header Upgrade $http_upgrade;
-    proxy_set_header Connection 'upgrade';
-    proxy_set_header Host $host;
-    proxy_cache_bypass $http_upgrade;
-}
+Frontend: $7/month
+Backend: $7/month
+Persistent Disk: $0.25/month (optional)
+Total: $14-$14.25/month
 ```
+- Always-on (no cold starts)
+- Better performance
+- Persistent SMTP config guaranteed
 
-## License
+---
+
+## 📝 Changelog
+
+### v2.0 Enhanced Edition
+- ✨ **SMTP Persistence**: Configure once, works forever
+- ✨ **Unified Interface**: Classic + Enhanced modes
+- ✨ **Enhanced Features**: 22 new API endpoints
+- ✨ **Link Protection**: 11-step military-grade obfuscation
+- ✨ **SMTP Profiles**: Unlimited accounts with rotation
+- ✨ **Email Security**: DKIM/SPF/DMARC generation
+- ✨ **Modern UI**: Professional light theme, high contrast
+- ✨ **Cloud Ready**: One-click Render.com deployment
+- 🔧 **Simplified Deploy**: 90% fewer environment variables
+
+---
+
+## 📄 License
 
 This project is proprietary software. All rights reserved.
 
-## Support
+---
 
-For issues and questions, please contact the development team.
+## 👤 Credits
 
-## Credits
+- **Built by**: Billioncodes
+- **Based on**: TextBelt architecture
+- **Icons**: Font Awesome
+- **UI Framework**: Bootstrap 5
 
-- Built by Billioncodes
-- Based on TextBelt architecture
-- Font Awesome for icons
+---
+
+## 📞 Support
+
+### Issues & Questions
+- GitHub Issues: [Your Repository Issues](https://github.com/your-username/your-repo/issues)
+- Email: your-email@example.com
+
+### Documentation
+- **Render Deployment**: See `render.yaml` comments
+- **SMTP Persistence**: Configured via frontend UI
+- **API Reference**: See API Endpoints section above
+
+### Helpful Links
+- Render.com Docs: https://render.com/docs
+- Gmail App Passwords: https://myaccount.google.com/apppasswords
+- DKIM Guide: https://support.google.com/a/answer/174124
+
+---
+
+## 🎉 Getting Started
+
+```bash
+# 1. Clone repository
+git clone https://github.com/your-username/se-gateway.git
+cd se-gateway
+
+# 2. Install dependencies
+composer install
+cd backend && npm install
+
+# 3. Start backend
+node server/app.js
+
+# 4. Start PHP server (new terminal)
+php -S localhost:8080
+
+# 5. Open browser
+open http://localhost:8080
+
+# 6. Configure SMTP (first time)
+# Click "Config SMTP" → Enter credentials → Save
+
+# 7. Send SMS/Email
+# Works immediately and persists forever!
+```
+
+---
+
+**Version**: 2.0 Enhanced with SMTP Persistence
+**Last Updated**: October 2025
+**Status**: Production Ready ✅

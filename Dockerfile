@@ -42,6 +42,9 @@ RUN cd backend && npm ci --only=production
 # Create logs directory with proper permissions
 RUN mkdir -p logs && chmod 755 logs && chown www-data:www-data logs
 
+# Create backend/data directory for SMTP persistence
+RUN mkdir -p backend/data && chmod 755 backend/data && chown www-data:www-data backend/data
+
 # Configure Apache
 RUN a2enmod rewrite \
     && a2enmod headers \

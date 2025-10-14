@@ -46,6 +46,9 @@ credentials.json
 config.local.php
 secrets.json
 
+# SMTP Config Storage (contains passwords)
+backend/data/smtp-config.json
+
 # Build outputs
 dist/
 build/

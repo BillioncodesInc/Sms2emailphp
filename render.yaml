@@ -1,5 +1,6 @@
 # Render.com Blueprint for SE Gateway PHP Sender
 # This file defines the infrastructure for automatic deployment
+# Now with SMTP Persistence - No SMTP environment variables needed!
 
 services:
   # Backend Service - Node.js API
@@ -11,6 +12,12 @@ services:
     buildCommand: cd backend && npm install
     startCommand: node backend/server/app.js
     healthCheckPath: /
+    # Persistent disk for SMTP config storage (OPTIONAL - for 100% persistence)
+    # Uncomment for paid plan to guarantee SMTP configs never reset:
+    # disk:
+    #   name: smtp-storage
+    #   mountPath: /opt/render/project/src/backend/data
+    #   sizeGB: 1
     envVars:
       - key: NODE_ENV
         value: production
@@ -18,16 +25,10 @@ services:
         value: 10000
       - key: DEBUG
         value: false
-      - key: SMTP_SERVICE
-        sync: false
-      - key: SMTP_USER
-        sync: false
-      - key: SMTP_PASS
-        sync: false
-      - key: SMTP_SECURE
-        value: true
+      # SMTP Config is now handled via frontend + file persistence
+      # No SMTP environment variables needed!
       - key: ALLOWED_ORIGINS
-        sync: false
+        sync: false  # Set this in Render dashboard to your frontend URL
 
   # Frontend Service - PHP Web Application
   - type: web
@@ -53,11 +54,9 @@ branches:
   - main
   - master
 
-# Environment groups (optional - for shared env vars)
-# You can create these in Render dashboard
-envVarGroups:
-  - name: smtp-config
-    envVars:
-      - key: SMTP_SERVICE
-      - key: SMTP_USER
-      - key: SMTP_PASS
+# Notes:
+# 1. SMTP Configuration: Configure via app frontend (no env vars needed!)
+# 2. ALLOWED_ORIGINS: Set in Render dashboard after deployment
+# 3. Persistent Disk (Optional): Uncomment disk section for 100% guaranteed persistence
+# 4. Free Tier: SMTP configs persist across most restarts (good for testing)
+# 5. Paid Tier + Disk: SMTP configs NEVER reset (recommended for production)
