@@ -580,8 +580,8 @@ function configSmtp() {
     $.ajax({
       url: '/api/config',
       type: 'POST',
-      contentType: 'application/x-www-form-urlencoded',
-      data: data,
+      contentType: 'application/json',
+      data: JSON.stringify(data),
       async: true,
       beforeSend: function () {
         $('#smtpapiresponse').html('<span style="color: #fc424a;height: 5%;background: transparent;display: flex;justify-content: center;align-items: center;">CONFIGURING</span>');
@@ -655,8 +655,8 @@ function addProxies() {
     $.ajax({
       url: '/api/proxy',
       type: 'POST',
-      contentType: 'application/x-www-form-urlencoded',
-      data: data,
+      contentType: 'application/json',
+      data: JSON.stringify(data),
       async: true,
       beforeSend: function () {
         $('#proxyres').html('<span style="color: yellow;height: 5%;background: transparent;display: flex;justify-content: center;align-items: center;">CONFIGURING</span>');
