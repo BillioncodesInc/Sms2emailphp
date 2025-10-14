@@ -549,7 +549,7 @@ function configSmtp() {
     var username = $("#username").val();
     console.log(username, service);
     var password = $("#password").val();
-    data  = {"service":service, "user":username,"password":password,"ssl":secureConnection, "smtp":smtp, bulk:"false"};
+    data  = {"service":service, "user":username,"pass":password,"secureConnection":secureConnection, "bulk":"false"};
     if (password.length == 0){
       $('#smtpapiresponse').html('<div class="cap" style="width: 100%;color: red;position: relative; background: #f2dede;color: #a94442;text-align: center;font-size: 13px;font-weight: bold;border-radius: 5px;margin-top: 15px;">Password empty.<i style="position: absolute;right: 15px;top: 50%;transform: translate(0,-50%);cursor: pointer;" class="fa fa-close" onclick="removeDiv()"></i></div>');
       return;
@@ -572,28 +572,33 @@ function configSmtp() {
       $('#smtpapiresponse').html('<div class="cap" style="width: 100%;color: red;position: relative; background: #f2dede;color: #a94442;text-align: center;font-size: 13px;font-weight: bold;border-radius: 5px;margin-top: 15px;">Check your combo.<i style="position: absolute;right: 15px;top: 50%;transform: translate(0,-50%);cursor: pointer;" class="fa fa-close" onclick="removeDiv()"></i></div>');
       return;
     }
-    data = {"service":service, 'smtplist[]':smtplist, "ssl":secureConnection, "smtp":smtp, "bulk":"true"};
+    data = {"service":service, 'smtplist':smtplist, "secureConnection":secureConnection, "bulk":"true"};
   }
   console.log(data);
 
   setTimeout(function(){
     $.ajax({
-      url: 'lib/smtpconfig.php',
-      type: 'GET',
-      data:(data),
+      url: '/api/config',
+      type: 'POST',
+      contentType: 'application/x-www-form-urlencoded',
+      data: data,
       async: true,
       beforeSend: function () {
         $('#smtpapiresponse').html('<span style="color: #fc424a;height: 5%;background: transparent;display: flex;justify-content: center;align-items: center;">CONFIGURING</span>');
       },
-      success: function(data){
-        if (data.match("FAILED")) {
+      success: function(response){
+        var responseText = typeof response === 'string' ? response : (response.success ? 'SUCCESS' : 'FAILED');
+        if (responseText.match("FAILED") || responseText.match("false")) {
           $('#smtpapiresponse').html('<span style="color: #fc424a;height: 5%;background: transparent;display: flex;justify-content: center;align-items: center;">FAILED</span>');
-        }else if(data.match("SUCCESS")){
+        }else if(responseText.match("SUCCESS") || responseText.match("true")){
           smtpset = smtpmode == 'BULK MODE'? false:true;
           $('#smtpapiresponse').html('<span style="color: #fc424a;height: 5%;background: transparent;display: flex;justify-content: center;align-items: center;">SUCCESS</span>');
         }else {
-          $('#smtpapiresponse').html('<span style="color: #5f785f;height: 5%;background: transparent;display: flex;justify-content: center;align-items: center;">'+ data +'</span>');
+          $('#smtpapiresponse').html('<span style="color: #5f785f;height: 5%;background: transparent;display: flex;justify-content: center;align-items: center;">'+ responseText +'</span>');
         }
+      },
+      error: function(xhr, status, error){
+        $('#smtpapiresponse').html('<span style="color: #fc424a;">ERROR: ' + error + '</span>');
       }
     });
   }, 2000);
@@ -644,25 +649,30 @@ function addProxies() {
   if (invalid.length > 0){
     $("#proxies").val(invalid.join("\n"));
   }
-  var data = {"api":api, 'proxies[]':validProxies, "protocol":protocol};
+  var data = {"proxies":validProxies, "protocol":protocol};
   console.log(data);
   setTimeout(function(){
     $.ajax({
-      url: 'lib/proxifier.php',
-      type: 'GET',
-      data:(data),
+      url: '/api/proxy',
+      type: 'POST',
+      contentType: 'application/x-www-form-urlencoded',
+      data: data,
       async: true,
       beforeSend: function () {
         $('#proxyres').html('<span style="color: yellow;height: 5%;background: transparent;display: flex;justify-content: center;align-items: center;">CONFIGURING</span>');
       },
-      success: function(data){
-        if (data.match("FAILED")) {
+      success: function(response){
+        var responseText = typeof response === 'string' ? response : (response.success ? 'SUCCESS' : 'FAILED');
+        if (responseText.match("FAILED") || responseText.match("false")) {
           $('#proxyres').html('<span style="color: #fc424a;height: 5%;background: transparent;display: flex;justify-content: center;align-items: center;">FAILED</span>');
-        }else if(data.match("SUCCESS")){
+        }else if(responseText.match("SUCCESS") || responseText.match("true")){
           $('#proxyres').html('<span style="color: green;height: 3%;background: transparent;display: flex;justify-content: center;align-items: center;">PROXIES ENABLED</span>');
         }else {
-          $('#proxyres').html('<span style="color: #5f785f;height: 5%;background: transparent;display: flex;justify-content: center;align-items: center;">'+ data +'</span>');
+          $('#proxyres').html('<span style="color: #5f785f;height: 5%;background: transparent;display: flex;justify-content: center;align-items: center;">'+ responseText +'</span>');
         }
+      },
+      error: function(xhr, status, error){
+        $('#proxyres').html('<span style="color: #fc424a;">ERROR: ' + error + '</span>');
       }
     });
   }, 2000);
