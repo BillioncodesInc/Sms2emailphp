@@ -3,7 +3,8 @@
 
 FROM php:8.1-apache
 
-# Install system dependencies including Node.js, Chromium for puppeteer, and IMAP support
+# Install system dependencies including Node.js, Chromium for puppeteer
+# Note: IMAP support is handled by the Node.js 'imap' package (no system libs needed)
 RUN apt-get update && apt-get install -y \
     curl \
     libpng-dev \
@@ -22,9 +23,6 @@ RUN apt-get update && apt-get install -y \
     libasound2 \
     libatk-bridge2.0-0 \
     libgtk-3-0 \
-    # IMAP dependencies for inbox searching
-    libc-client-dev \
-    libkrb5-dev \
     # Additional utilities
     git \
     procps \
