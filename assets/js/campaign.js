@@ -108,7 +108,7 @@ async function loadDashboardStats() {
     showSpinner(true);
 
     // Load SMTP profiles
-    const profilesResp = await fetch(`${API_BASE}/api/enhanced/smtp/profile/list`);
+    const profilesResp = await fetch(`${API_BASE}/smtp/profile/list`);
     const profilesData = await profilesResp.json();
 
     if (profilesData.success) {
@@ -116,7 +116,7 @@ async function loadDashboardStats() {
     }
 
     // Load SMTP stats
-    const statsResp = await fetch(`${API_BASE}/api/enhanced/smtp/stats`);
+    const statsResp = await fetch(`${API_BASE}/smtp/stats`);
     const statsData = await statsResp.json();
 
     if (statsData.success) {
@@ -470,7 +470,7 @@ async function sendEmailCampaign(total) {
   // Protect links if enabled
   if (campaignData.options.linkProtection.enabled && campaignData.content.link) {
     try {
-      const protectResp = await fetch(`${API_BASE}/api/enhanced/link/obfuscate`, {
+      const protectResp = await fetch(`${API_BASE}/link/obfuscate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -490,7 +490,7 @@ async function sendEmailCampaign(total) {
 
   try {
     // Use enhanced campaign endpoint with all advanced features
-    const response = await fetch(`${API_BASE}/api/enhanced/campaign/send-enhanced`, {
+    const response = await fetch(`${API_BASE}/campaign/send-enhanced`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -667,7 +667,7 @@ function toggleCollapse(sectionId) {
  */
 async function loadAttachments() {
   try {
-    const response = await fetch(`${API_BASE}/api/enhanced/attachments`);
+    const response = await fetch(`${API_BASE}/attachments`);
     const data = await response.json();
 
     if (data.success) {
@@ -729,7 +729,7 @@ async function uploadAttachment() {
     formData.append('name', name || fileInput.files[0].name);
     formData.append('description', description);
 
-    const response = await fetch(`${API_BASE}/api/enhanced/attachments/upload`, {
+    const response = await fetch(`${API_BASE}/attachments/upload`, {
       method: 'POST',
       body: formData
     });
@@ -758,7 +758,7 @@ async function uploadAttachment() {
 }
 
 async function downloadAttachment(id) {
-  window.open(`${API_BASE}/api/enhanced/attachments/${id}/download`, '_blank');
+  window.open(`${API_BASE}/attachments/${id}/download`, '_blank');
 }
 
 async function deleteAttachment(id) {
@@ -769,7 +769,7 @@ async function deleteAttachment(id) {
   try {
     showSpinner(true);
 
-    const response = await fetch(`${API_BASE}/api/enhanced/attachments/${id}`, {
+    const response = await fetch(`${API_BASE}/attachments/${id}`, {
       method: 'DELETE'
     });
 
@@ -794,7 +794,7 @@ async function deleteAttachment(id) {
  */
 async function loadSMTPProfiles() {
   try {
-    const response = await fetch(`${API_BASE}/api/enhanced/smtp/profile/list`);
+    const response = await fetch(`${API_BASE}/smtp/profile/list`);
     const data = await response.json();
 
     if (data.success) {
@@ -885,7 +885,7 @@ async function addSMTPProfile() {
 
     showSpinner(true);
 
-    const response = await fetch(`${API_BASE}/api/enhanced/smtp/profile/add`, {
+    const response = await fetch(`${API_BASE}/smtp/profile/add`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(profileData)
@@ -924,7 +924,7 @@ async function deleteSMTPProfile(id) {
   try {
     showSpinner(true);
 
-    const response = await fetch(`${API_BASE}/api/enhanced/smtp/profile/${id}`, {
+    const response = await fetch(`${API_BASE}/smtp/profile/${id}`, {
       method: 'DELETE'
     });
 
@@ -1014,7 +1014,7 @@ function openAttachmentPicker() {
 // Show macro helper
 async function showMacroHelper() {
   try {
-    const response = await fetch(`${API_BASE}/api/enhanced/enhance/macros`);
+    const response = await fetch(`${API_BASE}/enhance/macros`);
     const data = await response.json();
 
     if (data.success && data.macros) {
