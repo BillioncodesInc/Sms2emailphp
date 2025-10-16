@@ -1,5 +1,6 @@
 const express = require("express");
 const dns = require("dns").promises;
+const multer = require("multer");
 
 const carriers = require("../lib/carriers.js");
 const providers = require("../lib/providers.js");
@@ -27,6 +28,12 @@ campaignManager.initialize().catch(console.error);
 attachmentStorage.initialize().catch(console.error);
 
 const app = express();
+
+// Configure multer for file uploads (memory storage)
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 25 * 1024 * 1024 } // 25MB limit
+});
 
 // Express config
 app.use(express.json());
@@ -889,12 +896,31 @@ app.get('/api/enhanced/attachments/:id', (req, res) => {
 });
 
 // Upload attachment
-app.post('/api/enhanced/attachments/upload', async (req, res) => {
+app.post('/api/enhanced/attachments/upload', upload.single('file'), async (req, res) => {
   try {
-    const result = await attachmentStorage.uploadAttachment(req.body);
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        error: 'No file uploaded'
+      });
+    }
+
+    // Prepare file data for attachment storage
+    const fileData = {
+      name: req.body.name || req.file.originalname,
+      content: req.file.buffer, // File buffer from multer
+      type: req.file.mimetype,
+      description: req.body.description || ''
+    };
+
+    const result = await attachmentStorage.uploadAttachment(fileData);
     res.json(result);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Attachment upload error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
   }
 });
 
