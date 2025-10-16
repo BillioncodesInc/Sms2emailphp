@@ -6,8 +6,18 @@ const providers = require("../lib/providers.js");
 const text = require("../lib/text");
 let config = require("../lib/config.js");
 
-// Import enhanced routes
+// Import enhanced routes and campaign manager
 const { router: enhancedRoutes } = require("./enhancedRoutes");
+const CampaignManager = require("../lib/campaignManager");
+const AttachmentStorage = require("../lib/attachmentStorage");
+const campaignRoutes = require("./campaignRoutes");
+const smtpDatabaseRoutes = require("./smtpDatabaseRoutes");
+
+// Initialize campaign manager and attachment storage
+const campaignManager = new CampaignManager();
+const attachmentStorage = new AttachmentStorage();
+campaignManager.initialize().catch(console.error);
+attachmentStorage.initialize().catch(console.error);
 
 const app = express();
 
@@ -15,31 +25,29 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use((req, res, next) => {
-  // CORS configuration - Combined deployment (frontend + backend on same server)
-  // Since both services run on the same instance, requests come from same origin
-  // Allow requests from same origin and configured origins
-  const allowedOrigins = process.env.ALLOWED_ORIGINS
-    ? process.env.ALLOWED_ORIGINS.split(',')
-    : ['http://localhost:3000', 'http://localhost:8080', 'http://localhost:8000'];
-
+  // CORS configuration - Allow all origins in development, restricted in production
   const origin = req.headers.origin;
-
-  // In production, since we're on same server, allow same-origin requests
-  // Apache proxy forwards requests without origin header for same-origin
-  if (process.env.NODE_ENV !== 'production') {
-    res.header("Access-Control-Allow-Origin", origin || "*");
-  } else {
-    // Allow same-origin requests (no origin header means same origin via Apache proxy)
+  
+  if (process.env.NODE_ENV === 'production') {
+    // Production: Only allow configured origins or same-origin (no origin header)
+    const allowedOrigins = process.env.ALLOWED_ORIGINS
+      ? process.env.ALLOWED_ORIGINS.split(',')
+      : [];
+    
     if (!origin || allowedOrigins.includes(origin)) {
       res.header("Access-Control-Allow-Origin", origin || "*");
     }
+  } else {
+    // Development: Allow all origins
+    res.header("Access-Control-Allow-Origin", origin || "*");
   }
 
   res.header(
     "Access-Control-Allow-Headers",
-    "Origin, X-Requested-With, Content-Type, Accept"
+    "Origin, X-Requested-With, Content-Type, Accept, Authorization"
   );
-  res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+  res.header("Access-Control-Allow-Credentials", "true");
 
   // Handle preflight
   if (req.method === 'OPTIONS') {
@@ -166,6 +174,361 @@ app.post("/proxy", (req, res) => {
   proxy(req, res);
 });
 
+// Get proxy list
+app.get("/proxy/list", (req, res) => {
+  const proxyStorage = require('../lib/proxyStorage');
+  const proxyConfig = proxyStorage.loadConfig();
+
+  if (!proxyConfig || !proxyConfig.proxies) {
+    return res.json({
+      success: true,
+      proxies: [],
+      count: 0
+    });
+  }
+
+  // Add ID to each proxy for frontend management
+  const proxiesWithIds = proxyConfig.proxies.map((p, index) => ({
+    id: `proxy_${index}_${Date.now()}`,
+    host: p.host,
+    port: p.port,
+    protocol: p.protocol || proxyConfig.protocol,
+    status: 'unknown', // Will be updated by test
+    lastTested: null
+  }));
+
+  res.json({
+    success: true,
+    proxies: proxiesWithIds,
+    count: proxiesWithIds.length,
+    protocol: proxyConfig.protocol
+  });
+});
+
+// Delete specific proxy
+app.delete("/proxy/:index", (req, res) => {
+  const proxyStorage = require('../lib/proxyStorage');
+  const proxyConfig = proxyStorage.loadConfig();
+  const index = parseInt(req.params.index);
+
+  if (!proxyConfig || !proxyConfig.proxies) {
+    return res.json({ success: false, message: 'No proxies found' });
+  }
+
+  if (index < 0 || index >= proxyConfig.proxies.length) {
+    return res.json({ success: false, message: 'Invalid proxy index' });
+  }
+
+  proxyConfig.proxies.splice(index, 1);
+  proxyStorage.saveConfig(proxyConfig);
+
+  res.json({ success: true, message: 'Proxy deleted' });
+});
+
+// Test proxies with real connectivity check
+app.post("/proxy/test", async (req, res) => {
+  const { indices } = req.body; // Array of proxy indices to test
+  const proxyStorage = require('../lib/proxyStorage');
+  const proxyConfig = proxyStorage.loadConfig();
+  const https = require('https');
+  const http = require('http');
+  const { HttpsProxyAgent } = require('https-proxy-agent');
+  const { SocksProxyAgent } = require('socks-proxy-agent');
+
+  if (!proxyConfig || !proxyConfig.proxies) {
+    return res.json({ success: false, message: 'No proxies to test' });
+  }
+
+  const results = [];
+
+  // Test each proxy by actually trying to connect through it
+  for (let i = 0; i < proxyConfig.proxies.length; i++) {
+    if (indices && !indices.includes(i)) continue;
+
+    const proxy = proxyConfig.proxies[i];
+    const protocol = proxy.protocol || proxyConfig.protocol || 'http';
+
+    // Basic validation first
+    if (!proxy.host || !proxy.port || isNaN(proxy.port) || parseInt(proxy.port) < 1 || parseInt(proxy.port) > 65535) {
+      results.push({
+        index: i,
+        host: proxy.host,
+        port: proxy.port,
+        status: 'failed',
+        message: 'Invalid proxy configuration'
+      });
+      continue;
+    }
+
+    try {
+      // Test proxy by connecting to google.com
+      const testResult = await testProxyConnectivity(proxy, protocol);
+      results.push({
+        index: i,
+        host: proxy.host,
+        port: proxy.port,
+        status: testResult.success ? 'online' : 'failed',
+        message: testResult.message,
+        responseTime: testResult.responseTime
+      });
+    } catch (error) {
+      results.push({
+        index: i,
+        host: proxy.host,
+        port: proxy.port,
+        status: 'failed',
+        message: error.message || 'Connection failed'
+      });
+    }
+  }
+
+  res.json({
+    success: true,
+    results: results
+  });
+});
+
+/**
+ * Test proxy connectivity by making a real request through it
+ * Also tests mail ports (25, 465, 587, 2525)
+ * @param {Object} proxy - Proxy configuration {host, port}
+ * @param {string} protocol - Protocol type (http, socks4, socks5)
+ * @returns {Promise<Object>} Test result with success status, message, and open mail ports
+ */
+async function testProxyConnectivity(proxy, protocol) {
+  const result = {
+    success: false,
+    message: '',
+    responseTime: 0,
+    openPorts: []
+  };
+
+  // Test basic connectivity to google.com
+  const connectivityTest = await testProxyToGoogle(proxy, protocol);
+  result.success = connectivityTest.success;
+  result.message = connectivityTest.message;
+  result.responseTime = connectivityTest.responseTime;
+
+  // If proxy is online, test mail ports
+  if (result.success) {
+    result.openPorts = await testMailPorts(proxy, protocol);
+  }
+
+  return result;
+}
+
+/**
+ * Test proxy connectivity to Google
+ */
+async function testProxyToGoogle(proxy, protocol) {
+  return new Promise((resolve) => {
+    const startTime = Date.now();
+    const timeout = 10000;
+
+    try {
+      let proxyUrl;
+      let agent;
+
+      if (protocol === 'socks4' || protocol === 'socks5') {
+        proxyUrl = `${protocol}://${proxy.host}:${proxy.port}`;
+        agent = new (require('socks-proxy-agent').SocksProxyAgent)(proxyUrl);
+      } else {
+        proxyUrl = `http://${proxy.host}:${proxy.port}`;
+        agent = new (require('https-proxy-agent').HttpsProxyAgent)(proxyUrl);
+      }
+
+      const options = {
+        hostname: 'www.google.com',
+        port: 443,
+        path: '/',
+        method: 'GET',
+        agent: agent,
+        timeout: timeout,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+      };
+
+      const request = require('https').request(options, (response) => {
+        const responseTime = Date.now() - startTime;
+
+        if (response.statusCode === 200 || response.statusCode === 301 || response.statusCode === 302) {
+          resolve({
+            success: true,
+            message: `Connected (${responseTime}ms)`,
+            responseTime: responseTime
+          });
+        } else {
+          resolve({
+            success: false,
+            message: `HTTP ${response.statusCode}`,
+            responseTime: responseTime
+          });
+        }
+
+        response.destroy();
+      });
+
+      request.on('timeout', () => {
+        request.destroy();
+        resolve({
+          success: false,
+          message: 'Timeout (10s)',
+          responseTime: timeout
+        });
+      });
+
+      request.on('error', (error) => {
+        const responseTime = Date.now() - startTime;
+        let errorMessage = 'Connection failed';
+
+        if (error.code === 'ECONNREFUSED') {
+          errorMessage = 'Connection refused';
+        } else if (error.code === 'ETIMEDOUT') {
+          errorMessage = 'Timeout';
+        } else if (error.code === 'ENOTFOUND') {
+          errorMessage = 'Host not found';
+        } else if (error.message) {
+          errorMessage = error.message.substring(0, 30);
+        }
+
+        resolve({
+          success: false,
+          message: errorMessage,
+          responseTime: responseTime
+        });
+      });
+
+      request.end();
+
+    } catch (error) {
+      resolve({
+        success: false,
+        message: error.message || 'Test failed',
+        responseTime: Date.now() - startTime
+      });
+    }
+  });
+}
+
+/**
+ * Test mail ports through proxy
+ * Tests ports: 25, 465, 587, 2525
+ */
+async function testMailPorts(proxy, protocol) {
+  const mailPorts = [25, 465, 587, 2525];
+  const net = require('net');
+  const openPorts = [];
+
+  for (const port of mailPorts) {
+    try {
+      const isOpen = await testPort(proxy, protocol, port);
+      if (isOpen.open) {
+        openPorts.push({
+          port: port,
+          responseTime: isOpen.responseTime
+        });
+      }
+    } catch (error) {
+      // Port test failed, skip
+    }
+  }
+
+  return openPorts;
+}
+
+/**
+ * Test if a specific port is open through the proxy
+ */
+async function testPort(proxy, protocol, targetPort) {
+  return new Promise((resolve) => {
+    const startTime = Date.now();
+    const timeout = 3000; // 3 second timeout per port
+
+    try {
+      let proxyUrl;
+      let agent;
+
+      if (protocol === 'socks4' || protocol === 'socks5') {
+        proxyUrl = `${protocol}://${proxy.host}:${proxy.port}`;
+        agent = new (require('socks-proxy-agent').SocksProxyAgent)(proxyUrl);
+      } else {
+        proxyUrl = `http://${proxy.host}:${proxy.port}`;
+        agent = new (require('https-proxy-agent').HttpsProxyAgent)(proxyUrl);
+      }
+
+      // Try to connect to smtp.gmail.com on the target port through proxy
+      const net = require('net');
+      const socket = net.connect({
+        host: 'smtp.gmail.com',
+        port: targetPort,
+        timeout: timeout
+      });
+
+      socket.on('connect', () => {
+        const responseTime = Date.now() - startTime;
+        socket.destroy();
+        resolve({
+          open: true,
+          responseTime: responseTime
+        });
+      });
+
+      socket.on('timeout', () => {
+        socket.destroy();
+        resolve({
+          open: false,
+          responseTime: Date.now() - startTime
+        });
+      });
+
+      socket.on('error', () => {
+        socket.destroy();
+        resolve({
+          open: false,
+          responseTime: Date.now() - startTime
+        });
+      });
+
+    } catch (error) {
+      resolve({
+        open: false,
+        responseTime: Date.now() - startTime
+      });
+    }
+  });
+}
+
+// Remove failed proxies
+app.post("/proxy/remove-failed", async (req, res) => {
+  const { failedIndices } = req.body; // Array of failed proxy indices
+  const proxyStorage = require('../lib/proxyStorage');
+  const proxyConfig = proxyStorage.loadConfig();
+
+  if (!proxyConfig || !proxyConfig.proxies) {
+    return res.json({ success: false, message: 'No proxies found' });
+  }
+
+  // Remove proxies in reverse order to maintain correct indices
+  const sortedIndices = failedIndices.sort((a, b) => b - a);
+  let removedCount = 0;
+
+  for (const index of sortedIndices) {
+    if (index >= 0 && index < proxyConfig.proxies.length) {
+      proxyConfig.proxies.splice(index, 1);
+      removedCount++;
+    }
+  }
+
+  proxyStorage.saveConfig(proxyConfig);
+
+  res.json({
+    success: true,
+    message: `Removed ${removedCount} failed proxy(ies)`,
+    removedCount: removedCount
+  });
+});
+
 app.post("/text", (req, res) => {
   if (
     req.body.getcarriers != null &&
@@ -238,6 +601,23 @@ const disposable = new Set([
   "dispostable.com",
   "fakeinbox.com",
 ]);
+
+/* POST /smtp/test => "true"/"false" - Test SMTP connection */
+app.post("/smtp/test", async (req, res) => {
+  try {
+    if (!config.transport || !config.transport.auth) {
+      return res.send("false");
+    }
+
+    // Try to verify the SMTP connection
+    const transporter = nodemailer.createTransport(config.transport);
+    await transporter.verify();
+    return res.send("true");
+  } catch (err) {
+    console.error("SMTP test failed:", err.message);
+    return res.send("false");
+  }
+});
 
 /* POST /smtp/verify => "true"/"false" */
 app.post("/smtp/verify", (req, res) => {
@@ -373,13 +753,212 @@ app.post("/email", (req, res) => {
   });
 });
 
+/* POST /chatgpt/rephrase => { success, rephrased } - Rephrase message using ChatGPT */
+app.post("/chatgpt/rephrase", async (req, res) => {
+  try {
+    const { message, apiKey } = req.body;
+
+    if (!apiKey || !apiKey.trim()) {
+      return res.json({
+        success: false,
+        error: "API key is required. Please set your OpenAI API key in settings."
+      });
+    }
+
+    if (!message || !message.trim()) {
+      return res.json({
+        success: false,
+        error: "Message is required."
+      });
+    }
+
+    // Call OpenAI API to rephrase the message
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey.trim()}`
+      },
+      body: JSON.stringify({
+        model: "gpt-3.5-turbo",
+        messages: [
+          {
+            role: "system",
+            content: "You are a helpful assistant that rephrases messages to make them sound more natural, professional, and non-spammy while keeping the same meaning. Keep the rephrased version concise and maintain any links or important information."
+          },
+          {
+            role: "user",
+            content: `Rephrase this message to sound more natural and less spammy, but keep the same meaning:\n\n${message}`
+          }
+        ],
+        temperature: 0.7,
+        max_tokens: 500
+      })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      return res.json({
+        success: false,
+        error: errorData.error?.message || `OpenAI API error: ${response.status} ${response.statusText}`
+      });
+    }
+
+    const data = await response.json();
+    const rephrased = data.choices?.[0]?.message?.content?.trim();
+
+    if (!rephrased) {
+      return res.json({
+        success: false,
+        error: "Failed to generate rephrased message."
+      });
+    }
+
+    return res.json({
+      success: true,
+      rephrased: rephrased
+    });
+
+  } catch (err) {
+    console.error("ChatGPT rephrase error:", err.message);
+    return res.json({
+      success: false,
+      error: `Error: ${err.message}`
+    });
+  }
+});
+
 /* =================== Mount Enhanced Routes =================== */
 app.use('/api/enhanced', enhancedRoutes);
 
+/* =================== Mount Campaign Routes =================== */
+app.use('/api/enhanced', campaignRoutes(campaignManager));
+
+/* =================== Mount SMTP Database Routes =================== */
+app.use('/api/smtp/database', smtpDatabaseRoutes);
+
+/* =================== Mount SMTP Combo Routes =================== */
+const { router: comboRouter, setupWebSocket } = require('./comboRoutes');
+app.use('/api/smtp/combo', comboRouter);
+
+/* =================== Inbox Searcher Routes =================== */
+const { router: inboxRouter, setupWebSocket: setupInboxWebSocket } = require('./inboxRoutes');
+app.use('/api/inbox', inboxRouter);
+
+/* =================== Contact Extractor Routes =================== */
+const { router: contactRouter, setupWebSocket: setupContactWebSocket } = require('./contactRoutes');
+app.use('/api/contact', contactRouter);
+
+/* =================== Attachment Routes =================== */
+
+// Get all attachments
+app.get('/api/enhanced/attachments', (req, res) => {
+  try {
+    const attachments = attachmentStorage.getAllAttachments();
+    res.json({
+      success: true,
+      attachments,
+      count: attachments.length
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get attachment by ID
+app.get('/api/enhanced/attachments/:id', (req, res) => {
+  try {
+    const attachment = attachmentStorage.getAttachment(req.params.id);
+    if (!attachment) {
+      return res.status(404).json({ error: 'Attachment not found' });
+    }
+    res.json({
+      success: true,
+      attachment
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Upload attachment
+app.post('/api/enhanced/attachments/upload', async (req, res) => {
+  try {
+    const result = await attachmentStorage.uploadAttachment(req.body);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Delete attachment
+app.delete('/api/enhanced/attachments/:id', async (req, res) => {
+  try {
+    const result = await attachmentStorage.deleteAttachment(req.params.id);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get attachment statistics
+app.get('/api/enhanced/attachments/stats', (req, res) => {
+  try {
+    const stats = attachmentStorage.getStats();
+    res.json({
+      success: true,
+      stats
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 /* =================== Start server =================== */
 const port = process.env.PORT || 9090;
-app.listen(port, () => {
+const http = require('http');
+const WebSocket = require('ws');
+
+// Create HTTP server
+const server = http.createServer(app);
+
+// Create WebSocket servers for different features
+const wssCombo = new WebSocket.Server({ noServer: true });
+const wssInbox = new WebSocket.Server({ noServer: true });
+const wssContact = new WebSocket.Server({ noServer: true });
+
+// Setup WebSocket handlers
+setupWebSocket(wssCombo);
+setupInboxWebSocket(wssInbox);
+setupContactWebSocket(wssContact);
+
+// Handle WebSocket upgrade
+server.on('upgrade', (request, socket, head) => {
+  const pathname = request.url;
+
+  if (pathname.startsWith('/ws/combo/process/')) {
+    wssCombo.handleUpgrade(request, socket, head, (ws) => {
+      wssCombo.emit('connection', ws, request);
+    });
+  } else if (pathname.startsWith('/ws/inbox/')) {
+    wssInbox.handleUpgrade(request, socket, head, (ws) => {
+      wssInbox.emit('connection', ws, request);
+    });
+  } else if (pathname.startsWith('/ws/contacts/')) {
+    wssContact.handleUpgrade(request, socket, head, (ws) => {
+      wssContact.emit('connection', ws, request);
+    });
+  } else {
+    socket.destroy();
+  }
+});
+
+server.listen(port, () => {
   // eslint-disable-next-line no-console
   console.log("Listening on", port);
   console.log("Enhanced features available at /api/enhanced/*");
+  console.log("WebSocket available at:");
+  console.log("  - ws://localhost:" + port + "/ws/combo/process/:sessionId");
+  console.log("  - ws://localhost:" + port + "/ws/inbox/:sessionId");
+  console.log("  - ws://localhost:" + port + "/ws/contacts/:sessionId");
 });
