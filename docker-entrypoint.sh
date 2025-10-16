@@ -73,11 +73,12 @@ EOF
 
 echo "✓ Apache configuration updated"
 
-# Start Node.js backend in background with nohup
+# Start Node.js backend in background
+# Use 'tee' to send logs to both stdout (visible in Render) and log file
 echo "Starting Node.js backend process on port $BACKEND_PORT..."
 cd /var/www/html/backend
 export PORT=$BACKEND_PORT
-nohup node server/app.js > /var/www/html/logs/backend.log 2>&1 &
+node server/app.js 2>&1 | tee /var/www/html/logs/backend.log &
 BACKEND_PID=$!
 echo "Backend started with PID: $BACKEND_PID"
 
