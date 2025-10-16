@@ -1,26 +1,180 @@
+# ========================================
+# SE Gateway - Render Deployment Config
+# Version: 3.2.0
+# ========================================
+#
+# DEPLOYMENT GUIDE:
+# 1. Push this file to your GitHub repository
+# 2. Connect your repo to Render: https://dashboard.render.com/select-repo
+# 3. Render will auto-detect this file and configure your service
+# 4. Choose your instance type below (see recommendations)
+# 5. Deploy and monitor at https://dashboard.render.com
+#
+# COST CALCULATOR:
+# - Instance: $7-$450/month (see plan options below)
+# - Persistent Disks: $0.75/month (3GB total)
+# - Total: As low as $7.75/month or customize based on needs
+#
+# ========================================
+
 services:
   # Combined Service - PHP Frontend + Node.js Backend
   - type: web
     name: se-gateway
     runtime: docker
     region: oregon
-    plan: starter  # $25/month - 2GB RAM, 1 vCPU, no spin-down
+
+    # ========================================
+    # INSTANCE TYPE SELECTION
+    # ========================================
+    # Choose based on your expected usage and budget:
+    #
+    # starter: $7/month (512MB RAM, 0.5 CPU)
+    #   ❌ NOT RECOMMENDED - Chromium needs more memory
+    #   - May crash during PDF conversion or link protection
+    #   - Limited concurrent campaign processing
+    #   - Only for testing/development
+    #
+    # standard: $25/month (2GB RAM, 1 CPU) ⭐ RECOMMENDED
+    #   ✅ Best value for production use
+    #   - Handles 5-10 concurrent campaigns smoothly
+    #   - Supports all features including Chromium/puppeteer
+    #   - 100-500 emails per hour comfortable
+    #   - Suitable for small-to-medium businesses
+    #
+    # pro: $85/month (4GB RAM, 2 CPU)
+    #   ✅ Better for high-volume operations
+    #   - 10-20 concurrent campaigns
+    #   - 500-2000 emails per hour
+    #   - Multiple simultaneous inbox searches
+    #   - Better for agencies or high-traffic use
+    #
+    # pro_plus: $175/month (8GB RAM, 4 CPU)
+    #   ✅ Heavy concurrent usage
+    #   - 20-50 concurrent campaigns
+    #   - 2000-5000 emails per hour
+    #   - Multiple users simultaneously
+    #   - Enterprise-level reliability
+    #
+    # pro_max: $225/month (16GB RAM, 4 CPU)
+    #   ✅ Maximum reliability and performance
+    #   - 50+ concurrent campaigns
+    #   - 5000-10000 emails per hour
+    #   - Large-scale operations
+    #
+    # pro_ultra: $450/month (32GB RAM, 8 CPU)
+    #   ✅ Ultimate performance
+    #   - Unlimited concurrent operations
+    #   - 10000+ emails per hour
+    #   - Maximum scalability
+    #
+    # CHANGE THE PLAN BELOW:
+    plan: standard  # ⬅️ Change to: starter, standard, pro, pro_plus, pro_max, or pro_ultra
+
     dockerfilePath: ./Dockerfile
     healthCheckPath: /
-    autoDeploy: true
+    autoDeploy: true  # Auto-deploy when you push to main branch
+
+    # ========================================
+    # ENVIRONMENT VARIABLES
+    # ========================================
     envVars:
+      # Runtime Environment
       - key: NODE_ENV
         value: production
       - key: PHP_ENV
         value: production
       - key: DEBUG
-        value: false
+        value: false  # Set to true for troubleshooting
       - key: PORT
         value: 10000
 
-# Persistent disk for guaranteed SMTP config persistence (optional but recommended)
-# Uncomment below to add persistent storage ($0.25/GB/month)
-#disks:
-#  - name: smtp-data
-#    mountPath: /var/www/html/backend/data
-#    sizeGB: 1
+      # ========================================
+      # Transporter Pool Configuration (v3.2.0)
+      # Performance optimization for bulk sending
+      # ========================================
+      - key: POOL_MAX_SIZE
+        value: 10  # Max transporters in pool (increase for pro plans)
+      - key: POOL_MAX_MESSAGES
+        value: 100  # Messages per connection before refresh
+      - key: POOL_IDLE_TIMEOUT
+        value: 300000  # 5 minutes - close idle connections
+      - key: POOL_CONNECTION_TIMEOUT
+        value: 30000  # 30 seconds - connection timeout
+      - key: POOL_DEBUG
+        value: false  # Set to true to see pool activity in logs
+
+      # Puppeteer Configuration (for link protection, PDF conversion)
+      - key: PUPPETEER_SKIP_CHROMIUM_DOWNLOAD
+        value: true
+      - key: PUPPETEER_EXECUTABLE_PATH
+        value: /usr/bin/chromium
+
+    # ========================================
+    # PERSISTENT STORAGE
+    # ========================================
+    # Data persists across deployments and restarts
+    # Cost: $0.25/GB/month
+    #
+    # You can increase sizeGB if you need more storage:
+    # - 2GB is enough for ~1000 campaigns + attachments
+    # - 5GB for ~2500 campaigns + larger attachments
+    # - 10GB for ~5000 campaigns + extensive attachments
+    #
+    # IMPORTANT: Do not remove these disks after creation
+    # or you will lose all your data!
+    #
+    disks:
+      - name: smtp-data
+        mountPath: /var/www/html/backend/data
+        sizeGB: 2  # Stores: SMTP configs, campaigns, attachments, profiles ($0.50/month)
+
+      - name: logs-data
+        mountPath: /var/www/html/logs
+        sizeGB: 1  # Stores: Application logs, error logs ($0.25/month)
+
+# ========================================
+# TOTAL COST EXAMPLES:
+# ========================================
+# Starter (not recommended):  $7 + $0.75 = $7.75/month
+# Standard (recommended):     $25 + $0.75 = $25.75/month
+# Pro:                        $85 + $0.75 = $85.75/month
+# Pro Plus:                   $175 + $0.75 = $175.75/month
+# Pro Max:                    $225 + $0.75 = $225.75/month
+# Pro Ultra:                  $450 + $0.75 = $450.75/month
+#
+# ========================================
+# FEATURES SUPPORTED ON ALL PLANS:
+# ========================================
+# ✅ Email & SMS campaigns
+# ✅ Bulk SMTP management with connection pooling
+# ✅ Proxy rotation (HTTP, SOCKS4, SOCKS5)
+# ✅ SMTP combo validator with WebSocket
+# ✅ Link protection & obfuscation
+# ✅ QR code generation
+# ✅ PDF conversion
+# ✅ Inbox searcher (IMAP)
+# ✅ Contact extractor
+# ✅ Custom email headers
+# ✅ Gmail slow mode
+# ✅ SMTP warmup schedules
+# ✅ Blacklist checking
+# ✅ ChatGPT message rephrasing
+# ✅ Real-time WebSocket updates
+# ✅ Campaign analytics
+# ✅ Attachment management
+#
+# Higher plans just handle MORE concurrent operations
+# and HIGHER email volumes per hour.
+#
+# ========================================
+# DEPLOYMENT NOTES:
+# ========================================
+# 1. First deployment takes 5-10 minutes (Docker build)
+# 2. Subsequent deploys are faster (~2-3 minutes)
+# 3. Health check ensures backend is ready before serving traffic
+# 4. Logs available at: https://dashboard.render.com/web/YOUR-SERVICE/logs
+# 5. Metrics at: https://dashboard.render.com/web/YOUR-SERVICE/metrics
+# 6. Can upgrade/downgrade plans anytime without data loss
+#
+# ========================================

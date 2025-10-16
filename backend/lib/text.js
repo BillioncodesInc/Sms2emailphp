@@ -2,7 +2,7 @@
 const nodemailer = require("nodemailer");
 //import { SocksProxyAgent } from 'socks-proxy-agent';
 
-
+const { getPool } = require("./transporterPool.js");
 const carriers = require("./carriers.js");
 const providers = require("./providers.js");
 const smtpStorage = require("./smtpStorage.js");
@@ -94,19 +94,15 @@ function sendText(phone, message, carrier, region, sender, senderAd, cb) {
   }
   config.transport = SMTP_TRANSPORT;
   }
+  // Get proxy configuration if available
+  let proxyConfig = null;
   if (Array.isArray(proxies) && proxies.length > 0) {
-    const p = proxies[Math.floor(Math.random() * proxies.length)];
-    const scheme = p.protocol && (p.protocol === 'socks5' || p.protocol === 'socks4' || p.protocol === 'socks')
-      ? p.protocol
-      : 'http';
-    const auth = (p.username && p.password)
-      ? `${encodeURIComponent(p.username)}:${encodeURIComponent(p.password)}@`
-      : '';
-    const proxyUrl = `${scheme}://${auth}${p.host}:${p.port}`;
-    config.transport['proxy'] = proxyUrl;
+    proxyConfig = proxies[Math.floor(Math.random() * proxies.length)];
   }
-  transporter = nodemailer.createTransport(config.transport);
-  //transporter.set('proxy_socks_module', require('socks'));
+
+  // Get transporter from pool (will reuse existing or create new)
+  const pool = getPool();
+  transporter = pool.getTransporter(config.transport, proxyConfig);
 
   if (carrier) {
     
@@ -129,7 +125,7 @@ function sendText(phone, message, carrier, region, sender, senderAd, cb) {
       return new Promise((resolve, reject) =>
         transporter.sendMail(mailOptions, (err, info) => {
           if (err) return reject(err);
-          transporter.close();
+          // Note: Transporter is managed by pool, don't close it
           return resolve(info);
         })
       );
@@ -193,7 +189,10 @@ function testInboxFixed(message, mail, sender, cb) {
       ? config.transport.auth.user
       : 'no-reply@example.com';
     const from = '"' + sender + '" <' + fromUser + '>';
-    const transporter = nodemailer.createTransport(config.transport);
+
+    // Get transporter from pool (no proxy for tests)
+    const pool = getPool();
+    const transporter = pool.getTransporter(config.transport, null);
 
     const mailOptions = {
       to: mail,
@@ -205,7 +204,7 @@ function testInboxFixed(message, mail, sender, cb) {
     };
 
     transporter.sendMail(mailOptions, (err) => {
-      transporter.close();
+      // Note: Transporter is managed by pool, don't close it
       if (cb) return cb(err || null);
     });
   } catch (err) {
@@ -230,8 +229,11 @@ function testInbox(message, mail, sender, cb) {
     }
     output("Using SMTP : \n" + config.transport.auth.user+"\n"+ config.transport.auth.pass+"\n"+ config.transport.service+"\n"+config.transport.secureConnection);
     output(to, sender);
-    const transporter = nodemailer.createTransport(config.transport);
-    
+
+    // Get transporter from pool (no proxy for tests)
+    const pool = getPool();
+    const transporter = pool.getTransporter(config.transport, null);
+
     const mailOptions = {
         to,
         subject: "This is a test message",
@@ -243,7 +245,7 @@ function testInbox(message, mail, sender, cb) {
       const p = new Promise((resolve, reject) =>
         transporter.sendMail(mailOptions, (err, info) => {
           if (err) return reject(err);
-          transporter.close();
+          // Note: Transporter is managed by pool, don't close it
           output(info);
           return resolve(info);
         })
@@ -354,7 +356,16 @@ function setProxies(proxiesl, protocol){
 function sendEmailMessage(recipients, subject, message, from, cb) {
   try {
     const arr = Array.isArray(recipients) ? recipients : [recipients];
-    const transporter = nodemailer.createTransport(config.transport);
+
+    // Get proxy configuration if available
+    let proxyConfig = null;
+    if (Array.isArray(proxies) && proxies.length > 0) {
+      proxyConfig = proxies[Math.floor(Math.random() * proxies.length)];
+    }
+
+    // Get transporter from pool (will reuse existing or create new)
+    const pool = getPool();
+    const transporter = pool.getTransporter(config.transport, proxyConfig);
 
     const sendOne = (to) =>
       new Promise((resolve, reject) =>
@@ -375,7 +386,7 @@ function sendEmailMessage(recipients, subject, message, from, cb) {
       );
 
     const p = Promise.all(arr.map(sendOne)).then((infos) => {
-      transporter.close();
+      // Note: Transporter is managed by pool, don't close it
       return infos;
     });
 
@@ -402,9 +413,12 @@ function sendEmailMessage(recipients, subject, message, from, cb) {
 /* Verify SMTP transport connectivity/auth; returns nodemailer.verify result */
 function verifyTransport(cb) {
   try {
-    const transporter = nodemailer.createTransport(config.transport);
+    // Get transporter from pool (no proxy for verification)
+    const pool = getPool();
+    const transporter = pool.getTransporter(config.transport, null);
+
     transporter.verify((err, success) => {
-      transporter.close();
+      // Note: Transporter is managed by pool, don't close it
       if (cb) return cb(err, success);
     });
   } catch (err) {

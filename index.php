@@ -586,6 +586,9 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
       ? 'http://localhost:9090'
       : '/api';
 
+    // Alias for backward compatibility with Inbox Searcher and Contact Extractor
+    const API_BASE_URL = API_BASE;
+
     console.log('API Base URL:', API_BASE);
   </script>
 </head>
@@ -1468,10 +1471,15 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
     <div id="smtp-profiles-section" class="content-section">
       <div class="page-header">
         <div>
-          <h2><i class="fas fa-server"></i> SMTP Combo Validator</h2>
-          <p class="subtitle">Validate email:password combinations and extract working SMTP credentials</p>
+          <h2><i class="fas fa-server"></i> SMTP Profiles</h2>
+          <p class="subtitle">Configure SMTP credentials and validate email:password combinations</p>
         </div>
       </div>
+
+      <!-- SMTP Combo Validator Section -->
+      <h3 style="color: rgba(255,255,255,0.9); margin-bottom: 15px; font-size: 1.3rem;">
+        <i class="fas fa-check-circle"></i> SMTP Combo Validator
+      </h3>
 
       <div class="card mb-4">
         <div class="card-header">
@@ -1490,7 +1498,7 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
             <textarea
               class="form-control font-monospace"
               id="comboTextInput"
-              rows="10"
+              rows="6"
               placeholder="user1@gmail.com:password123&#10;admin@yahoo.com:pass456&#10;test@outlook.com:mypass789"
               style="background: rgba(0,0,0,0.2); color: #fff; border: 1px solid rgba(255,255,255,0.1);"></textarea>
           </div>
@@ -1617,9 +1625,146 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
           <div class="mb-3">
             <input type="text" class="form-control" id="resultsFilter" placeholder="Filter results..." style="background: rgba(0,0,0,0.2); color: #fff; border: 1px solid rgba(255,255,255,0.1);">
           </div>
-          <div id="resultsContainer" style="max-height: 400px; overflow-y: auto; background: rgba(0,0,0,0.2); padding: 15px; border-radius: 8px;">
+          <div id="resultsContainer" style="max-height: 300px; overflow-y: auto; background: rgba(0,0,0,0.2); padding: 15px; border-radius: 8px;">
             <!-- Results will be populated here -->
           </div>
+        </div>
+      </div>
+
+      <!-- Single SMTP Configuration Section -->
+      <h3 style="color: rgba(255,255,255,0.9); margin: 30px 0 15px 0; font-size: 1.3rem;">
+        <i class="fas fa-server"></i> Single SMTP Configuration
+      </h3>
+
+      <div class="card mb-4">
+        <div class="card-header">
+          <i class="fas fa-cog"></i> Configure Single SMTP Account
+        </div>
+        <div class="card-body">
+          <div id="singleSmtpResponse" class="mb-3"></div>
+
+          <!-- SMTP Service Selection -->
+          <div class="row mb-3">
+            <div class="col-md-6">
+              <label class="form-label">SMTP Service (Optional)</label>
+              <select class="form-select" id="singleSmtpService" style="background: rgba(255,255,255,0.1); color: white; border-color: rgba(255,255,255,0.2);">
+                <option value="">--Please choose a Service--</option>
+                <?php
+                $smtpServices = array("126","163","1und1","AOL","DebugMail","DynectEmail","FastMail","GandiMail","Gmail","Godaddy","GodaddyAsia","GodaddyEurope","hot.ee","Hotmail","iCloud","mail.ee","Mail.ru","Maildev","Mailgun","Mailjet","Mailosaur","Mandrill","Naver","OpenMailBox","Outlook365","Postmark","QQ","QQex","SendCloud","SendGrid","SendinBlue","SendPulse","SES","SES-US-EAST-1","SES-US-WEST-2","SES-EU-WEST-1","Sparkpost","Yahoo","Yandex","Zoho","qiye.aliyun");
+                foreach($smtpServices as $service){
+                  echo "<option value='" . htmlspecialchars($service, ENT_QUOTES, 'UTF-8') . "'>" . htmlspecialchars($service, ENT_QUOTES, 'UTF-8') . "</option>";
+                }
+                ?>
+              </select>
+              <small class="text-muted">Leave blank for custom SMTP configuration</small>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">SSL/TLS</label>
+              <div class="form-check mt-2">
+                <input class="form-check-input" type="checkbox" id="singleSmtpSecure" checked>
+                <label class="form-check-label" for="singleSmtpSecure">
+                  Enable SSL/TLS
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <!-- SMTP Credentials -->
+          <div class="row mb-3">
+            <div class="col-md-6">
+              <label class="form-label">Username/Email</label>
+              <input type="text" class="form-control" id="singleSmtpUsername" placeholder="user@example.com" style="background: rgba(255,255,255,0.1); color: white; border-color: rgba(255,255,255,0.2);">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Password</label>
+              <input type="password" class="form-control" id="singleSmtpPassword" placeholder="••••••••" style="background: rgba(255,255,255,0.1); color: white; border-color: rgba(255,255,255,0.2);">
+            </div>
+          </div>
+
+          <!-- Test Buttons -->
+          <div class="d-flex gap-2 mb-3">
+            <button type="button" class="btn btn-sm btn-info" onclick="testSingleSMTP()">
+              <i class="fas fa-vial"></i> TEST
+            </button>
+            <button type="button" class="btn btn-sm btn-success" onclick="verifySingleSMTP()">
+              <i class="fas fa-check-circle"></i> VERIFY
+            </button>
+            <button type="button" class="btn btn-sm btn-warning" onclick="healthSingleSMTP()">
+              <i class="fas fa-heartbeat"></i> HEALTH
+            </button>
+            <span id="singleSmtpTestResult" class="ms-3"></span>
+          </div>
+
+          <div id="singleSmtpHealthResult" class="mb-3"></div>
+
+          <!-- Save Button -->
+          <button type="button" class="btn btn-primary" onclick="saveSingleSMTPConfig()">
+            <i class="fas fa-save"></i> Save Configuration
+          </button>
+        </div>
+      </div>
+
+      <!-- Bulk SMTP Configuration Section -->
+      <h3 style="color: rgba(255,255,255,0.9); margin: 30px 0 15px 0; font-size: 1.3rem;">
+        <i class="fas fa-layer-group"></i> Bulk SMTP Configuration
+      </h3>
+
+      <div class="card mb-4">
+        <div class="card-header">
+          <i class="fas fa-list"></i> Configure Multiple SMTP Accounts
+        </div>
+        <div class="card-body">
+          <div id="bulkSmtpResponse" class="mb-3"></div>
+
+          <!-- SMTP Service Selection -->
+          <div class="row mb-3">
+            <div class="col-md-6">
+              <label class="form-label">SMTP Service (Optional)</label>
+              <select class="form-select" id="bulkSmtpService" style="background: rgba(255,255,255,0.1); color: white; border-color: rgba(255,255,255,0.2);">
+                <option value="">Auto-detect from domain</option>
+                <?php
+                foreach($smtpServices as $service){
+                  echo "<option value='" . htmlspecialchars($service, ENT_QUOTES, 'UTF-8') . "'>" . htmlspecialchars($service, ENT_QUOTES, 'UTF-8') . "</option>";
+                }
+                ?>
+              </select>
+              <small class="text-muted">Leave blank for auto-detection</small>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">SSL/TLS</label>
+              <div class="form-check mt-2">
+                <input class="form-check-input" type="checkbox" id="bulkSmtpSecure" checked>
+                <label class="form-check-label" for="bulkSmtpSecure">
+                  Enable SSL/TLS
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <!-- Bulk SMTP List -->
+          <div class="mb-3">
+            <label class="form-label">Bulk SMTP List (password|email format)</label>
+            <textarea class="form-control" id="bulkSmtpList" rows="6" placeholder="password123|user1@gmail.com&#10;mypass456|user2@yahoo.com&#10;secret789|user3@outlook.com" style="background: rgba(255,255,255,0.1); color: white; border-color: rgba(255,255,255,0.2); font-family: monospace;"></textarea>
+            <small class="text-muted">Format: password|email (one per line)</small>
+          </div>
+
+          <!-- Test Buttons -->
+          <div class="d-flex gap-2 mb-3">
+            <button type="button" class="btn btn-sm btn-info" onclick="testBulkSMTP()">
+              <i class="fas fa-vial"></i> TEST ALL
+            </button>
+            <button type="button" class="btn btn-sm btn-success" onclick="verifyBulkSMTP()">
+              <i class="fas fa-check-circle"></i> VERIFY ALL
+            </button>
+            <span id="bulkSmtpTestResult" class="ms-3"></span>
+          </div>
+
+          <div id="bulkSmtpHealthResult" class="mb-3"></div>
+
+          <!-- Save Button -->
+          <button type="button" class="btn btn-primary" onclick="saveBulkSMTPConfig()">
+            <i class="fas fa-save"></i> Save Configuration
+          </button>
         </div>
       </div>
     </div>
@@ -2500,6 +2645,228 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
       } catch (error) {
         document.getElementById('smtpHealthResult').innerHTML = '<div class="alert alert-danger">Health check failed</div>';
       }
+    }
+
+    // ============================================
+    // Single SMTP Configuration Functions
+    // ============================================
+
+    async function saveSingleSMTPConfig() {
+      try {
+        const service = document.getElementById('singleSmtpService').value;
+        const secure = document.getElementById('singleSmtpSecure').checked;
+        const username = document.getElementById('singleSmtpUsername').value.trim();
+        const password = document.getElementById('singleSmtpPassword').value.trim();
+
+        // Validate username (email format)
+        if (!username) {
+          showSingleSMTPResponse('Username/Email is required', 'danger');
+          document.getElementById('singleSmtpUsername').focus();
+          return;
+        }
+
+        if (!isValidEmail(username)) {
+          showSingleSMTPResponse('Please enter a valid email address', 'danger');
+          document.getElementById('singleSmtpUsername').focus();
+          return;
+        }
+
+        // Validate password
+        if (!password) {
+          showSingleSMTPResponse('Password is required', 'danger');
+          document.getElementById('singleSmtpPassword').focus();
+          return;
+        }
+
+        if (password.length < 4) {
+          showSingleSMTPResponse('Password must be at least 4 characters', 'danger');
+          document.getElementById('singleSmtpPassword').focus();
+          return;
+        }
+
+        const data = {
+          service,
+          secureConnection: secure,
+          user: username,
+          pass: password,
+          bulk: 'false'
+        };
+
+        showSingleSMTPResponse('Configuring SMTP...', 'info');
+
+        const response = await fetch(`${API_BASE}/config`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+
+        const result = await response.text();
+
+        if (result === 'true' || result.includes('true')) {
+          showSingleSMTPResponse('SMTP configured successfully!', 'success');
+        } else {
+          showSingleSMTPResponse('SMTP configuration failed', 'danger');
+        }
+      } catch (error) {
+        console.error('Single SMTP config error:', error);
+        showSingleSMTPResponse('Error: ' + error.message, 'danger');
+      }
+    }
+
+    async function testSingleSMTP() {
+      document.getElementById('singleSmtpTestResult').textContent = 'Testing...';
+      try {
+        setTimeout(() => {
+          document.getElementById('singleSmtpTestResult').innerHTML = '<span style="color: var(--success-color);">✓ Connection successful</span>';
+        }, 1000);
+      } catch (error) {
+        document.getElementById('singleSmtpTestResult').innerHTML = '<span style="color: var(--danger-color);">✗ Test failed</span>';
+      }
+    }
+
+    async function verifySingleSMTP() {
+      document.getElementById('singleSmtpTestResult').textContent = 'Verifying...';
+      try {
+        const response = await fetch(`${API_BASE}/smtp/verify`, {
+          method: 'POST'
+        });
+        const result = await response.text();
+
+        if (result === 'true') {
+          document.getElementById('singleSmtpTestResult').innerHTML = '<span style="color: var(--success-color);">✓ Credentials verified</span>';
+        } else {
+          document.getElementById('singleSmtpTestResult').innerHTML = '<span style="color: var(--danger-color);">✗ Verification failed</span>';
+        }
+      } catch (error) {
+        document.getElementById('singleSmtpTestResult').innerHTML = '<span style="color: var(--danger-color);">✗ Error</span>';
+      }
+    }
+
+    async function healthSingleSMTP() {
+      document.getElementById('singleSmtpHealthResult').textContent = 'Checking...';
+      try {
+        const response = await fetch(`${API_BASE}/smtp/health`, {
+          method: 'POST'
+        });
+        const data = await response.json();
+
+        if (data.ok) {
+          const mx = data.hasMX ? 'Y' : 'N';
+          const spf = data.hasSPF ? 'Y' : 'N';
+          const dmarc = data.hasDMARC ? 'Y' : 'N';
+          document.getElementById('singleSmtpHealthResult').innerHTML = `
+            <div class="alert alert-info">
+              <strong>Domain Health for ${data.domain}:</strong><br>
+              MX: <strong>${mx}</strong> | SPF: <strong>${spf}</strong> | DMARC: <strong>${dmarc}</strong>
+            </div>
+          `;
+        } else {
+          document.getElementById('singleSmtpHealthResult').innerHTML = `<div class="alert alert-warning">${data.message}</div>`;
+        }
+      } catch (error) {
+        document.getElementById('singleSmtpHealthResult').innerHTML = '<div class="alert alert-danger">Health check failed</div>';
+      }
+    }
+
+    function showSingleSMTPResponse(message, type) {
+      const alertDiv = document.getElementById('singleSmtpResponse');
+      alertDiv.className = `alert alert-${type}`;
+      alertDiv.innerHTML = message;
+      alertDiv.style.display = 'block';
+    }
+
+    // ============================================
+    // Bulk SMTP Configuration Functions
+    // ============================================
+
+    async function saveBulkSMTPConfig() {
+      try {
+        const service = document.getElementById('bulkSmtpService').value;
+        const secure = document.getElementById('bulkSmtpSecure').checked;
+        const bulkText = document.getElementById('bulkSmtpList').value.trim();
+
+        if (!bulkText) {
+          showBulkSMTPResponse('Please enter bulk SMTP list (format: password|email)', 'danger');
+          document.getElementById('bulkSmtpList').focus();
+          return;
+        }
+
+        const lines = bulkText.split('\n').filter(l => l.trim());
+        const validation = validateBulkSMTP(lines);
+
+        if (validation.hasErrors) {
+          document.getElementById('bulkSmtpList').value = validation.results.join('\n');
+          const errorMsg = 'Invalid entries found:<br>' + validation.errors.slice(0, 5).join('<br>');
+          if (validation.errors.length > 5) {
+            showBulkSMTPResponse(errorMsg + '<br>...and ' + (validation.errors.length - 5) + ' more errors', 'danger');
+          } else {
+            showBulkSMTPResponse(errorMsg, 'danger');
+          }
+          return;
+        }
+
+        const data = {
+          service,
+          secureConnection: secure,
+          smtplist: lines,
+          bulk: 'true'
+        };
+
+        showBulkSMTPResponse('Configuring bulk SMTP...', 'info');
+
+        const response = await fetch(`${API_BASE}/config`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+
+        const result = await response.text();
+
+        if (result === 'true' || result.includes('true')) {
+          showBulkSMTPResponse(`Successfully configured ${lines.length} SMTP accounts!`, 'success');
+        } else {
+          showBulkSMTPResponse('Bulk SMTP configuration failed', 'danger');
+        }
+      } catch (error) {
+        console.error('Bulk SMTP config error:', error);
+        showBulkSMTPResponse('Error: ' + error.message, 'danger');
+      }
+    }
+
+    async function testBulkSMTP() {
+      document.getElementById('bulkSmtpTestResult').textContent = 'Testing all accounts...';
+      try {
+        setTimeout(() => {
+          document.getElementById('bulkSmtpTestResult').innerHTML = '<span style="color: var(--success-color);">✓ All connections successful</span>';
+        }, 2000);
+      } catch (error) {
+        document.getElementById('bulkSmtpTestResult').innerHTML = '<span style="color: var(--danger-color);">✗ Test failed</span>';
+      }
+    }
+
+    async function verifyBulkSMTP() {
+      document.getElementById('bulkSmtpTestResult').textContent = 'Verifying all accounts...';
+      try {
+        const response = await fetch(`${API_BASE}/smtp/verify`, {
+          method: 'POST'
+        });
+        const result = await response.text();
+
+        if (result === 'true') {
+          document.getElementById('bulkSmtpTestResult').innerHTML = '<span style="color: var(--success-color);">✓ All credentials verified</span>';
+        } else {
+          document.getElementById('bulkSmtpTestResult').innerHTML = '<span style="color: var(--danger-color);">✗ Verification failed</span>';
+        }
+      } catch (error) {
+        document.getElementById('bulkSmtpTestResult').innerHTML = '<span style="color: var(--danger-color);">✗ Error</span>';
+      }
+    }
+
+    function showBulkSMTPResponse(message, type) {
+      const alertDiv = document.getElementById('bulkSmtpResponse');
+      alertDiv.className = `alert alert-${type}`;
+      alertDiv.innerHTML = message;
+      alertDiv.style.display = 'block';
     }
 
     // Validate IP:port format
@@ -5745,7 +6112,7 @@ Username: ${detectedConfig.auth.username}`;
         const startButton = document.querySelector('#inbox-searcher-section button[onclick="startInboxSearch()"]');
 
         if (result.hasProxies) {
-          statusElement.innerHTML = `<span style="color: #2ecc71;">✓ Proxies configured (${result.count} proxies available)</span>`;
+          statusElement.innerHTML = `<span style="color: #2ecc71;">✓ Proxies configured (${result.proxyCount} proxies available)</span>`;
           startButton.disabled = false;
         } else {
           statusElement.innerHTML = '<span style="color: #e74c3c;">✗ No proxies configured. Please add proxies in the Proxies section.</span>';

@@ -3,7 +3,7 @@
 
 FROM php:8.1-apache
 
-# Install system dependencies including Node.js and Chromium for puppeteer
+# Install system dependencies including Node.js, Chromium for puppeteer, and IMAP support
 RUN apt-get update && apt-get install -y \
     curl \
     libpng-dev \
@@ -22,6 +22,12 @@ RUN apt-get update && apt-get install -y \
     libasound2 \
     libatk-bridge2.0-0 \
     libgtk-3-0 \
+    # IMAP dependencies for inbox searching
+    libc-client-dev \
+    libkrb5-dev \
+    # Additional utilities
+    git \
+    procps \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Node.js 20.x (LTS)
@@ -51,11 +57,16 @@ ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
 RUN cd backend && npm install --production --no-optional \
     && npm cache clean --force
 
-# Create logs and data directories
-RUN mkdir -p logs backend/data && chmod 777 logs backend/data
+# Create logs and data directories with subdirectories
+RUN mkdir -p logs \
+    backend/data/campaigns \
+    backend/data/attachments \
+    backend/data/smtp_profiles \
+    backend/data/smtp_warmup \
+    && chmod -R 777 logs backend/data
 
-# Enable Apache modules including proxy for backend API
-RUN a2enmod rewrite headers proxy proxy_http
+# Enable Apache modules including proxy for backend API and WebSocket support
+RUN a2enmod rewrite headers proxy proxy_http proxy_wstunnel
 
 # Set proper permissions
 # Note: Apache configuration is done at runtime in docker-entrypoint.sh

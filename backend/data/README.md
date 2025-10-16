@@ -1,1 +1,0 @@
-# SMTP Config Storage Directory

@@ -6,12 +6,19 @@ const providers = require("../lib/providers.js");
 const text = require("../lib/text");
 let config = require("../lib/config.js");
 
+// Import transporter pool
+const { initializePool, getPool } = require("../lib/transporterPool");
+
 // Import enhanced routes and campaign manager
 const { router: enhancedRoutes } = require("./enhancedRoutes");
 const CampaignManager = require("../lib/campaignManager");
 const AttachmentStorage = require("../lib/attachmentStorage");
 const campaignRoutes = require("./campaignRoutes");
 const smtpDatabaseRoutes = require("./smtpDatabaseRoutes");
+
+// Initialize transporter pool with config options
+const transporterPool = initializePool(config.poolOptions);
+console.log('✨ Transporter pool initialized with options:', config.poolOptions);
 
 // Initialize campaign manager and attachment storage
 const campaignManager = new CampaignManager();
@@ -962,3 +969,36 @@ server.listen(port, () => {
   console.log("  - ws://localhost:" + port + "/ws/inbox/:sessionId");
   console.log("  - ws://localhost:" + port + "/ws/contacts/:sessionId");
 });
+
+// Graceful shutdown handlers
+function gracefulShutdown(signal) {
+  console.log(`\n${signal} received. Starting graceful shutdown...`);
+
+  // Close HTTP server
+  server.close(() => {
+    console.log('✅ HTTP server closed');
+
+    // Close all transporter connections
+    const pool = getPool();
+    pool.closeAll();
+    console.log('✅ All transporter connections closed');
+
+    // Close WebSocket servers
+    wssCombo.close(() => console.log('✅ Combo WebSocket server closed'));
+    wssInbox.close(() => console.log('✅ Inbox WebSocket server closed'));
+    wssContact.close(() => console.log('✅ Contact WebSocket server closed'));
+
+    console.log('👋 Graceful shutdown complete');
+    process.exit(0);
+  });
+
+  // Force close after 10 seconds
+  setTimeout(() => {
+    console.error('⚠️  Forceful shutdown after timeout');
+    process.exit(1);
+  }, 10000);
+}
+
+// Register shutdown handlers
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));

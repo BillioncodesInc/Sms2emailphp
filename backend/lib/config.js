@@ -24,4 +24,13 @@ module.exports = {
     priority: 'high',
   },
   debugEnabled: process.env.DEBUG === 'true' || false,
+
+  // Transporter Pool Configuration
+  poolOptions: {
+    maxPoolSize: parseInt(process.env.POOL_MAX_SIZE) || 10,
+    maxMessagesPerConnection: parseInt(process.env.POOL_MAX_MESSAGES) || 100,
+    idleTimeout: parseInt(process.env.POOL_IDLE_TIMEOUT) || 300000, // 5 minutes
+    connectionTimeout: parseInt(process.env.POOL_CONNECTION_TIMEOUT) || 30000, // 30 seconds
+    debugEnabled: process.env.POOL_DEBUG === 'true' || false, // Set to true for debugging
+  }
 };

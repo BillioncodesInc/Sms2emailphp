@@ -1,0 +1,21 @@
+{
+  "proxies": [
+    {
+      "host": "192.168.1.1",
+      "port": "8080"
+    },
+    {
+      "host": "proxy.example.com",
+      "port": "3128"
+    },
+    {
+      "host": "10.0.0.1",
+      "port": "1080",
+      "username": "user",
+      "password": "pass"
+    }
+  ],
+  "protocol": "http",
+  "lastUpdated": "2025-10-16T13:29:38.141Z",
+  "version": "1.0"
+}

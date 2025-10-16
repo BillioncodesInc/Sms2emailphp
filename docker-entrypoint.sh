@@ -17,11 +17,14 @@ echo "Apache will use PORT: $APACHE_PORT"
 export BACKEND_PORT=9090
 echo "Backend will use PORT: $BACKEND_PORT"
 
-# Create necessary directories
-mkdir -p /var/www/html/backend/data
+# Create necessary directories and subdirectories
+mkdir -p /var/www/html/backend/data/campaigns
+mkdir -p /var/www/html/backend/data/attachments
+mkdir -p /var/www/html/backend/data/smtp_profiles
+mkdir -p /var/www/html/backend/data/smtp_warmup
 mkdir -p /var/www/html/logs
-chmod 777 /var/www/html/backend/data
-chmod 777 /var/www/html/logs
+chmod -R 777 /var/www/html/backend/data
+chmod -R 777 /var/www/html/logs
 
 # Configure Apache with the actual PORT value at runtime
 echo "Configuring Apache to listen on port $APACHE_PORT..."
@@ -45,6 +48,19 @@ cat > /etc/apache2/sites-available/000-default.conf <<EOF
     ProxyPreserveHost On
     ProxyPass /api http://localhost:$BACKEND_PORT/api
     ProxyPassReverse /api http://localhost:$BACKEND_PORT/api
+
+    # Proxy WebSocket connections for real-time features
+    # Combo validator WebSocket
+    ProxyPass /ws/combo ws://localhost:$BACKEND_PORT/ws/combo
+    ProxyPassReverse /ws/combo ws://localhost:$BACKEND_PORT/ws/combo
+
+    # Inbox searcher WebSocket
+    ProxyPass /ws/inbox ws://localhost:$BACKEND_PORT/ws/inbox
+    ProxyPassReverse /ws/inbox ws://localhost:$BACKEND_PORT/ws/inbox
+
+    # Contact extractor WebSocket
+    ProxyPass /ws/contacts ws://localhost:$BACKEND_PORT/ws/contacts
+    ProxyPassReverse /ws/contacts ws://localhost:$BACKEND_PORT/ws/contacts
 
     <Directory /var/www/html>
         Options Indexes FollowSymLinks
