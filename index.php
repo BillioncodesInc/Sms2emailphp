@@ -521,10 +521,60 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
       to { opacity: 1; transform: translateY(0); }
     }
 
+    /* Mobile Menu Button */
+    .mobile-menu-btn {
+      display: none;
+      position: fixed;
+      top: 15px;
+      left: 15px;
+      z-index: 1001;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border: none;
+      width: 45px;
+      height: 45px;
+      border-radius: 10px;
+      cursor: pointer;
+      box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+      transition: all 0.3s ease;
+    }
+
+    .mobile-menu-btn:hover {
+      transform: scale(1.05);
+      box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+    }
+
+    .mobile-menu-btn i {
+      color: white;
+      font-size: 20px;
+    }
+
+    /* Mobile Overlay */
+    .mobile-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 999;
+    }
+
+    .mobile-overlay.active {
+      display: block;
+    }
+
     /* Mobile Responsive */
     @media (max-width: 768px) {
+      .mobile-menu-btn {
+        display: block;
+      }
+
       .sidebar {
+        position: fixed;
+        z-index: 1000;
         transform: translateX(-100%);
+        transition: transform 0.3s ease;
       }
 
       .sidebar.open {
@@ -533,6 +583,7 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
 
       .main-content {
         margin-left: 0;
+        padding-top: 70px;
       }
 
       .wizard-steps {
@@ -583,8 +634,8 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
   <script>
     // Auto-detect environment and set API base URL
     const API_BASE = window.location.hostname === 'localhost'
-      ? 'http://localhost:9090'
-      : '/api';
+      ? 'http://localhost:9090/api/enhanced'
+      : '/api/enhanced';
 
     // Alias for backward compatibility with Inbox Searcher and Contact Extractor
     const API_BASE_URL = API_BASE;
@@ -593,6 +644,14 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
   </script>
 </head>
 <body>
+
+  <!-- Mobile Menu Button -->
+  <button class="mobile-menu-btn" id="mobileMenuBtn" onclick="toggleMobileMenu()">
+    <i class="fas fa-bars"></i>
+  </button>
+
+  <!-- Mobile Overlay -->
+  <div class="mobile-overlay" id="mobileOverlay" onclick="closeMobileMenu()"></div>
 
   <!-- Sidebar -->
   <div class="sidebar" id="sidebar">
@@ -3859,8 +3918,42 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
 
     // =================== Navigation System ===================
 
+    // Mobile menu functions
+    function toggleMobileMenu() {
+      const sidebar = document.getElementById('sidebar');
+      const overlay = document.getElementById('mobileOverlay');
+      const menuBtn = document.getElementById('mobileMenuBtn');
+
+      sidebar.classList.toggle('open');
+      overlay.classList.toggle('active');
+
+      // Change icon
+      const icon = menuBtn.querySelector('i');
+      if (sidebar.classList.contains('open')) {
+        icon.className = 'fas fa-times';
+      } else {
+        icon.className = 'fas fa-bars';
+      }
+    }
+
+    function closeMobileMenu() {
+      const sidebar = document.getElementById('sidebar');
+      const overlay = document.getElementById('mobileOverlay');
+      const menuBtn = document.getElementById('mobileMenuBtn');
+
+      sidebar.classList.remove('open');
+      overlay.classList.remove('active');
+
+      // Reset icon
+      const icon = menuBtn.querySelector('i');
+      icon.className = 'fas fa-bars';
+    }
+
     // Switch section function with sidebar highlighting
     function switchSection(sectionName) {
+      // Close mobile menu if open
+      closeMobileMenu();
+
       // Remove active class from all nav links
       document.querySelectorAll('.nav-link').forEach(link => {
         link.classList.remove('active');
