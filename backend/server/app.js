@@ -864,11 +864,11 @@ app.use('/api/smtp/combo', comboRouter);
 
 /* =================== Inbox Searcher Routes =================== */
 const { router: inboxRouter, setupWebSocket: setupInboxWebSocket } = require('./inboxRoutes');
-app.use('/api/inbox', inboxRouter);
+app.use('/api/enhanced/inbox', inboxRouter);
 
 /* =================== Contact Extractor Routes =================== */
 const { router: contactRouter, setupWebSocket: setupContactWebSocket } = require('./contactRoutes');
-app.use('/api/contact', contactRouter);
+app.use('/api/enhanced/contact', contactRouter);
 
 /* =================== Attachment Routes =================== */
 
