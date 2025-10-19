@@ -637,10 +637,16 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
       ? 'http://localhost:9090/api/enhanced'
       : '/api/enhanced';
 
+    // Legacy API base (for non-enhanced endpoints like /proxy, /text, etc.)
+    const API_LEGACY = window.location.hostname === 'localhost'
+      ? 'http://localhost:9090'
+      : '/api';
+
     // Alias for backward compatibility with Inbox Searcher and Contact Extractor
     const API_BASE_URL = API_BASE;
 
     console.log('API Base URL:', API_BASE);
+    console.log('API Legacy URL:', API_LEGACY);
   </script>
 </head>
 <body>
@@ -3084,7 +3090,7 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
 
         showProxyResponse(`Adding ${validation.valid.length} proxy(ies)...`, 'info');
 
-        const response = await fetch(`${API_BASE}/proxy`, {
+        const response = await fetch(`${API_LEGACY}/proxy`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -3168,7 +3174,7 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
 
     async function loadCampaignsList() {
       try {
-        const response = await fetch(`${API_BASE}/api/enhanced/campaigns`);
+        const response = await fetch(`${API_BASE}/campaigns`);
         const data = await response.json();
 
         if (data.success) {
@@ -3456,7 +3462,7 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
       }
 
       try {
-        const response = await fetch(`${API_BASE}/api/enhanced/campaigns/create`, {
+        const response = await fetch(`${API_BASE}/campaigns/create`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(campaignData)
@@ -3498,7 +3504,7 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
     // View campaign details
     async function viewCampaignDetails(id) {
       try {
-        const response = await fetch(`${API_BASE}/api/enhanced/campaigns/${id}`);
+        const response = await fetch(`${API_BASE}/campaigns/${id}`);
         const data = await response.json();
 
         if (data.success) {
@@ -3551,7 +3557,7 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
 
       try {
         // Fetch campaign data
-        const response = await fetch(`${API_BASE}/api/enhanced/campaigns/${id}`);
+        const response = await fetch(`${API_BASE}/campaigns/${id}`);
         const data = await response.json();
 
         if (!data.success) {
@@ -3595,7 +3601,7 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
         appendCampaignLog(id, `[${new Date().toLocaleTimeString()}] Delay: ${campaign.options?.delay || 0}ms between sends`, 'info');
 
         // Update campaign status to 'sending'
-        const updateResponse = await fetch(`${API_BASE}/api/enhanced/campaigns/${id}`, {
+        const updateResponse = await fetch(`${API_BASE}/campaigns/${id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ status: 'sending' })
@@ -3708,7 +3714,7 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
 
     async function editCampaignModal(id) {
       try {
-        const response = await fetch(`${API_BASE}/api/enhanced/campaigns/${id}`);
+        const response = await fetch(`${API_BASE}/campaigns/${id}`);
         const data = await response.json();
 
         if (data.success) {
@@ -3786,7 +3792,7 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
       }
 
       try {
-        const response = await fetch(`${API_BASE}/api/enhanced/campaigns/${id}`, {
+        const response = await fetch(`${API_BASE}/campaigns/${id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(campaignData)
@@ -3813,7 +3819,7 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
       if (!confirm('Are you sure you want to delete this campaign? This cannot be undone.')) return;
 
       try {
-        const response = await fetch(`${API_BASE}/api/enhanced/campaigns/${id}`, {
+        const response = await fetch(`${API_BASE}/campaigns/${id}`, {
           method: 'DELETE'
         });
 
@@ -4056,7 +4062,7 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
     // Load attachments dropdown
     async function loadAttachmentsDropdown() {
       try {
-        const response = await fetch(`${API_BASE}/api/enhanced/attachments`);
+        const response = await fetch(`${API_BASE}/attachments`);
         const data = await response.json();
 
         const select = document.getElementById('page-campaign-attachments');
@@ -4257,14 +4263,14 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
         let response;
         if (editingCampaignId) {
           // Update existing campaign
-          response = await fetch(`${API_BASE}/api/enhanced/campaigns/${editingCampaignId}`, {
+          response = await fetch(`${API_BASE}/campaigns/${editingCampaignId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(campaignData)
           });
         } else {
           // Create new campaign
-          response = await fetch(`${API_BASE}/api/enhanced/campaigns/create`, {
+          response = await fetch(`${API_BASE}/campaigns/create`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(campaignData)
@@ -4347,7 +4353,7 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
       }
 
       try {
-        const response = await fetch(`${API_BASE}/proxy`, {
+        const response = await fetch(`${API_LEGACY}/proxy`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -4405,7 +4411,7 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
       }
 
       try {
-        const response = await fetch(`${API_BASE}/proxy`, {
+        const response = await fetch(`${API_LEGACY}/proxy`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -4436,7 +4442,7 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
     // Load proxies list from backend
     async function loadProxiesList() {
       try {
-        const response = await fetch(`${API_BASE}/proxy/list`);
+        const response = await fetch(`${API_LEGACY}/proxy/list`);
         const data = await response.json();
 
         const container = document.getElementById('proxyListContainer');
@@ -4531,7 +4537,7 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
       try {
         showProxyPageResponse('Testing proxies...', 'info');
 
-        const response = await fetch(`${API_BASE}/proxy/test`, {
+        const response = await fetch(`${API_LEGACY}/proxy/test`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ indices: indices })
@@ -4615,7 +4621,7 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
       }
 
       try {
-        const response = await fetch(`${API_BASE}/proxy/remove-failed`, {
+        const response = await fetch(`${API_LEGACY}/proxy/remove-failed`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ failedIndices: failedProxyIndices })
@@ -4644,7 +4650,7 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
       }
 
       try {
-        const response = await fetch(`${API_BASE}/proxy/${index}`, {
+        const response = await fetch(`${API_LEGACY}/proxy/${index}`, {
           method: 'DELETE'
         });
 
@@ -6198,7 +6204,7 @@ Username: ${detectedConfig.auth.username}`;
     // Check proxy status on page load
     async function checkInboxProxyStatus() {
       try {
-        const response = await fetch(`${API_BASE_URL}/api/inbox/proxy-check`);
+        const response = await fetch(`${API_BASE_URL}/inbox/proxy-check`);
         const result = await response.json();
 
         const statusElement = document.getElementById('inboxProxyStatus');
@@ -6254,7 +6260,7 @@ Username: ${detectedConfig.auth.username}`;
 
       try {
         // Start search
-        const response = await fetch(`${API_BASE_URL}/api/inbox/search`, {
+        const response = await fetch(`${API_BASE_URL}/inbox/search`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ smtpList, keywords })
@@ -6445,7 +6451,7 @@ Username: ${detectedConfig.auth.username}`;
       if (!inboxSearchSessionId) return;
 
       try {
-        await fetch(`${API_BASE_URL}/api/inbox/session/${inboxSearchSessionId}`, {
+        await fetch(`${API_BASE_URL}/inbox/session/${inboxSearchSessionId}`, {
           method: 'DELETE'
         });
 
@@ -6610,7 +6616,7 @@ Username: ${detectedConfig.auth.username}`;
 
       try {
         // Start extraction
-        const response = await fetch(`${API_BASE_URL}/api/contact/extract`, {
+        const response = await fetch(`${API_BASE_URL}/contact/extract`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ smtpList, options: { deduplicate, includePhone } })
@@ -6767,7 +6773,7 @@ Username: ${detectedConfig.auth.username}`;
       if (!contactSessionId) return;
 
       try {
-        await fetch(`${API_BASE_URL}/api/contact/session/${contactSessionId}`, {
+        await fetch(`${API_BASE_URL}/contact/session/${contactSessionId}`, {
           method: 'DELETE'
         });
 

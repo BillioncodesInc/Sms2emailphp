@@ -71,6 +71,13 @@ app.use((req, res, next) => {
   next();
 });
 
+// Request logging middleware
+app.use((req, res, next) => {
+  const timestamp = new Date().toISOString();
+  console.log(`[${timestamp}] ${req.method} ${req.url}`);
+  next();
+});
+
 // App helper functions.
 function stripPhone(phone) {
   return `${phone}`.replace(/\D/g, "");

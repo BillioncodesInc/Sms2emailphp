@@ -1,1 +1,24 @@
-[]
+[
+  {
+    "id": "d27c59fdcab05052dc167ca6886bf263",
+    "name": "test",
+    "originalName": "test",
+    "filename": "d27c59fdcab05052dc167ca6886bf263_test",
+    "type": "image/jpeg",
+    "size": 356277,
+    "description": "",
+    "uploadedAt": "2025-10-19T00:04:23.798Z",
+    "path": "/Users/billioncodestv/Documents/projects/SE Gateway php Sender/backend/data/attachments/d27c59fdcab05052dc167ca6886bf263_test"
+  },
+  {
+    "id": "652fb9382b2b578575ba75c593b6cf0a",
+    "name": "test",
+    "originalName": "test",
+    "filename": "652fb9382b2b578575ba75c593b6cf0a_test",
+    "type": "application/pdf",
+    "size": 3478914,
+    "description": "",
+    "uploadedAt": "2025-10-19T00:04:51.197Z",
+    "path": "/Users/billioncodestv/Documents/projects/SE Gateway php Sender/backend/data/attachments/652fb9382b2b578575ba75c593b6cf0a_test"
+  }
+]
