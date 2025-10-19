@@ -638,8 +638,9 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
       : '/api/enhanced';
 
     // Legacy API base (for non-enhanced endpoints like /proxy, /text, etc.)
+    // These are now also under /api on the backend
     const API_LEGACY = window.location.hostname === 'localhost'
-      ? 'http://localhost:9090'
+      ? 'http://localhost:9090/api'
       : '/api';
 
     // Alias for backward compatibility with Inbox Searcher and Contact Extractor

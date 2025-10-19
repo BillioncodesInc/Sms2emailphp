@@ -169,7 +169,7 @@ app.get("/", (req, res) => {
   res.send("Server is up and running!");
 });
 
-app.get("/providers/:region", (req, res) => {
+app.get("/api/providers/:region", (req, res) => {
   // Utility function, just to check the providers currently loaded
   res.send(providers[req.params.region]);
 });
@@ -186,17 +186,17 @@ app.post("/test", (req, res) => {
     }
   });
 })
-app.post("/config", (req, res) => {
+app.post("/api/config", (req, res) => {
   text.output("received new stmp config");
   smtpconfig(req, res);
 });
 
-app.post("/proxy", (req, res) => {
+app.post("/api/proxy", (req, res) => {
   proxy(req, res);
 });
 
 // Get proxy list
-app.get("/proxy/list", (req, res) => {
+app.get("/api/proxy/list", (req, res) => {
   const proxyStorage = require('../lib/proxyStorage');
   const proxyConfig = proxyStorage.loadConfig();
 
@@ -227,7 +227,7 @@ app.get("/proxy/list", (req, res) => {
 });
 
 // Delete specific proxy
-app.delete("/proxy/:index", (req, res) => {
+app.delete("/api/proxy/:index", (req, res) => {
   const proxyStorage = require('../lib/proxyStorage');
   const proxyConfig = proxyStorage.loadConfig();
   const index = parseInt(req.params.index);
@@ -550,7 +550,7 @@ app.post("/proxy/remove-failed", async (req, res) => {
   });
 });
 
-app.post("/text", (req, res) => {
+app.post("/api/text", (req, res) => {
   if (
     req.body.getcarriers != null &&
     (req.body.getcarriers === "1" ||
@@ -695,7 +695,7 @@ app.post("/smtp/health", async (req, res) => {
 });
 
 /* POST /validateEmails => { valid:[], removed:[] } */
-app.post("/validateEmails", (req, res) => {
+app.post("/api/validateEmails", (req, res) => {
   const raw = req.body.emails || req.body.list || req.body.to || [];
   const list = parseEmails(raw);
 
