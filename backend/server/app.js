@@ -902,6 +902,34 @@ app.get('/api/enhanced/attachments/:id', (req, res) => {
   }
 });
 
+// Download attachment
+app.get('/api/enhanced/attachments/:id/download', (req, res) => {
+  try {
+    const fs = require('fs');
+    const attachment = attachmentStorage.getAttachment(req.params.id);
+
+    if (!attachment) {
+      return res.status(404).json({ error: 'Attachment not found' });
+    }
+
+    // Check if file exists
+    if (!fs.existsSync(attachment.path)) {
+      return res.status(404).json({ error: 'File not found on disk' });
+    }
+
+    // Set headers for file download
+    res.setHeader('Content-Disposition', `attachment; filename="${attachment.originalName}"`);
+    res.setHeader('Content-Type', attachment.type || 'application/octet-stream');
+
+    // Stream the file
+    const fileStream = fs.createReadStream(attachment.path);
+    fileStream.pipe(res);
+  } catch (error) {
+    console.error('Attachment download error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Upload attachment
 app.post('/api/enhanced/attachments/upload', upload.single('file'), async (req, res) => {
   try {
