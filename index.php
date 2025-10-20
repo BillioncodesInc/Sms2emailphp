@@ -3124,8 +3124,42 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
     }
 
     async function testBulkSMTP() {
+      // Get current form values (not saved config)
+      const service = document.getElementById('bulkSmtpService').value;
+      const secure = document.getElementById('bulkSmtpSecure').checked;
+      const bulkList = document.getElementById('bulkSmtpList').value.trim();
+
+      // Validate before testing
+      if (!service) {
+        document.getElementById('bulkSmtpTestResult').innerHTML = '<span style="color: var(--warning-color);">⚠ Please select an SMTP service first</span>';
+        return;
+      }
+
+      if (!bulkList) {
+        document.getElementById('bulkSmtpTestResult').innerHTML = '<span style="color: var(--warning-color);">⚠ Please enter SMTP accounts list</span>';
+        return;
+      }
+
       document.getElementById('bulkSmtpTestResult').textContent = 'Testing all accounts...';
+
       try {
+        // First save the bulk config temporarily
+        const smtplist = bulkList.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+
+        const data = {
+          service,
+          secureConnection: secure,
+          smtplist: smtplist,
+          bulk: 'true'
+        };
+
+        await fetch(`${API_LEGACY}/config`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+
+        // Then test it
         const response = await fetch(`${API_LEGACY}/smtp/test`, {
           method: 'POST'
         });
@@ -3142,8 +3176,42 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
     }
 
     async function verifyBulkSMTP() {
+      // Get current form values (not saved config)
+      const service = document.getElementById('bulkSmtpService').value;
+      const secure = document.getElementById('bulkSmtpSecure').checked;
+      const bulkList = document.getElementById('bulkSmtpList').value.trim();
+
+      // Validate before verifying
+      if (!service) {
+        document.getElementById('bulkSmtpTestResult').innerHTML = '<span style="color: var(--warning-color);">⚠ Please select an SMTP service first</span>';
+        return;
+      }
+
+      if (!bulkList) {
+        document.getElementById('bulkSmtpTestResult').innerHTML = '<span style="color: var(--warning-color);">⚠ Please enter SMTP accounts list</span>';
+        return;
+      }
+
       document.getElementById('bulkSmtpTestResult').textContent = 'Verifying all accounts...';
+
       try {
+        // First save the bulk config temporarily
+        const smtplist = bulkList.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+
+        const data = {
+          service,
+          secureConnection: secure,
+          smtplist: smtplist,
+          bulk: 'true'
+        };
+
+        await fetch(`${API_LEGACY}/config`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+
+        // Then verify it
         const response = await fetch(`${API_LEGACY}/smtp/verify`, {
           method: 'POST'
         });
@@ -3155,7 +3223,7 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
           document.getElementById('bulkSmtpTestResult').innerHTML = '<span style="color: var(--danger-color);">✗ Verification failed</span>';
         }
       } catch (error) {
-        document.getElementById('bulkSmtpTestResult').innerHTML = '<span style="color: var(--danger-color);">✗ Error</span>';
+        document.getElementById('bulkSmtpTestResult').innerHTML = '<span style="color: var(--danger-color);">✗ Error: ' + error.message + '</span>';
       }
     }
 
