@@ -288,7 +288,7 @@ app.delete("/api/proxy/:index", (req, res) => {
 });
 
 // Test proxies with real connectivity check
-app.post("/proxy/test", async (req, res) => {
+app.post("/api/proxy/test", async (req, res) => {
   const { indices } = req.body; // Array of proxy indices to test
   const proxyStorage = require('../lib/proxyStorage');
   const proxyConfig = proxyStorage.loadConfig();
@@ -562,7 +562,7 @@ async function testPort(proxy, protocol, targetPort) {
 }
 
 // Remove failed proxies
-app.post("/proxy/remove-failed", async (req, res) => {
+app.post("/api/proxy/remove-failed", async (req, res) => {
   const { failedIndices } = req.body; // Array of failed proxy indices
   const proxyStorage = require('../lib/proxyStorage');
   const proxyConfig = proxyStorage.loadConfig();
