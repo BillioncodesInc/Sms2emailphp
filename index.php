@@ -2730,6 +2730,13 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
         const username = document.getElementById('singleSmtpUsername').value.trim();
         const password = document.getElementById('singleSmtpPassword').value.trim();
 
+        // Validate service selection
+        if (!service) {
+          showSingleSMTPResponse('Please select an SMTP service from the dropdown', 'danger');
+          document.getElementById('singleSmtpService').focus();
+          return;
+        }
+
         // Validate username (email format)
         if (!username) {
           showSingleSMTPResponse('Username/Email is required', 'danger');

@@ -133,19 +133,23 @@ function smtpconfig(req, res) {
   text.output('setting smtp...')
   if(req.body.bulk == 'false'){
     let { service, secureConnection, user, pass } = req.body;
-    if (service && secureConnection && user && pass) {
+    // Service is required for single mode (no custom host/port fields in UI)
+    // secureConnection, user, and pass are required
+    if (service && secureConnection !== undefined && user && pass) {
       text.config({ service, secureConnection, user, pass });
       res.send("true");
     } else {
+      console.error('SMTP config validation failed:', { service: !!service, secureConnection, user: !!user, pass: !!pass });
       res.send("false");
     }
   } else if(req.body.bulk == 'true') {
     let { service, secureConnection, smtplist} = req.body;
     service = service.length == 0? 'none':service;
-    if(service && secureConnection && smtplist) {
+    if(service && secureConnection !== undefined && smtplist) {
       text.bulk({service, secureConnection, smtplist});
       res.send("true");
     } else {
+      console.error('Bulk SMTP config validation failed');
       res.send("false");
     }
   }
