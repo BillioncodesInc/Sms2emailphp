@@ -859,7 +859,8 @@ app.post("/api/email", upload.array('attachments', 10), async (req, res) => {
     // Link protection if requested
     let processedMessage = message;
     if (protectLinks === true || protectLinks === 'true') {
-      const linkProtector = require('../lib/linkProtector');
+      const LinkProtection = require('../lib/linkProtection');
+      const linkProtector = new LinkProtection();
       const protected = linkProtector.replaceLinksInContent(message, {
         level: linkProtectionLevel || 'high'
       });

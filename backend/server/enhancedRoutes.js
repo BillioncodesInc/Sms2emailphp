@@ -499,52 +499,19 @@ router.post("/security/rate-limit", (req, res) => {
  */
 
 /* DEPRECATED: This endpoint is now handled by /api/email with enhancedResponse=true
- * Keeping for backward compatibility - redirects to /api/email
+ * Keeping for backward compatibility - returns deprecation notice
  */
 router.post("/send/enhanced", upload.array('attachments', 10), async (req, res) => {
-  try {
-    // Forward request to /api/email with enhanced response enabled
-    const axios = require('axios');
-
-    // Prepare form data with attachments
-    const FormData = require('form-data');
-    const form = new FormData();
-
-    // Add all body fields
-    Object.keys(req.body).forEach(key => {
-      form.append(key, req.body[key]);
-    });
-
-    // Add attachments if any
-    if (req.files && req.files.length > 0) {
-      req.files.forEach(file => {
-        form.append('attachments', file.buffer, {
-          filename: file.originalname,
-          contentType: file.mimetype
-        });
-      });
+  res.status(410).json({
+    success: false,
+    error: 'This endpoint has been deprecated. Please use POST /api/email with enhancedResponse=true instead.',
+    migration: {
+      oldEndpoint: 'POST /api/enhanced/send/enhanced',
+      newEndpoint: 'POST /api/email',
+      instructions: 'Add "enhancedResponse": true to your request body for detailed responses.',
+      documentation: 'See ENDPOINT_CLEANUP_SUMMARY.md for migration guide'
     }
-
-    // Enable enhanced response
-    form.append('enhancedResponse', 'true');
-
-    // Forward to /api/email
-    const response = await axios.post(
-      `http://localhost:${process.env.PORT || 9090}/api/email`,
-      form,
-      {
-        headers: form.getHeaders()
-      }
-    );
-
-    res.json(response.data);
-  } catch (error) {
-    console.error('Enhanced send error:', error.message);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
+  });
 });
 
 // Export manager instances for use in other modules
