@@ -851,7 +851,7 @@ app.post("/api/validateEmails", (req, res) => {
    Body: recipients (array|string), subject, message, from OR sender+senderAd
 */
 app.post("/email", (req, res) => {
-  let { recipients, subject, message, from, sender, senderAd } = req.body;
+  let { recipients, subject, message, from, sender, senderAd, useProxy } = req.body;
   const list =
     parseEmails(recipients || req.body.emails || req.body.to || req.body.email) ||
     [];
@@ -871,7 +871,10 @@ app.post("/email", (req, res) => {
     from = `"${sender}" <${addr}>`;
   }
 
-  text.email(list, subject || null, message, from, (err) => {
+  // Parse useProxy parameter (defaults to true for backward compatibility)
+  const shouldUseProxy = useProxy === undefined ? undefined : (useProxy === true || useProxy === 'true');
+
+  text.email(list, subject || null, message, from, shouldUseProxy, (err) => {
     if (err) {
       return res.send({
         success: false,

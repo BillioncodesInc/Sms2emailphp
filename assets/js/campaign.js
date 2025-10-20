@@ -490,7 +490,7 @@ async function sendEmailCampaign(total) {
 
   try {
     // Use enhanced campaign endpoint with all advanced features
-    const response = await fetch(`${API_BASE}/campaign/send-enhanced`, {
+    const response = await fetch(`${API_LEGACY}/email`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -498,28 +498,17 @@ async function sendEmailCampaign(total) {
         subject: campaignData.content.subject,
         message: message,
         sender: campaignData.sender.name,
-        senderEmail: campaignData.sender.email,
-        options: {
-          enableCustomHeaders: campaignData.options.enableCustomHeaders !== false,
-          enableGmailSlowMode: campaignData.options.enableGmailSlowMode !== false,
-          enableWarmup: campaignData.options.enableWarmup !== false,
-          enableZeroWidth: campaignData.options.enableZeroWidth !== false,
-          enableAttributeShuffle: campaignData.options.enableAttributeShuffle !== false,
-          enableMacros: campaignData.options.enableMacros !== false,
-          enableReadReceipt: campaignData.options.enableReadReceipt === true,
-          priority: campaignData.options.priority || 'normal',
-          smtpId: campaignData.sender.email || 'default',
-          gmailDelay: 6000,
-          otherDelay: campaignData.options.delay || 1000
-        }
+        senderAd: campaignData.sender.email,
+        useProxy: campaignData.options.useProxy === true
       })
     });
 
-    const data = await response.json();
+    // Handle response: /email endpoint returns "true" on success or {success: false, message: "..."} on error
+    const responseText = await response.text();
 
-    if (data.success && data.results) {
-      const sent = data.results.summary.sent;
-      const failed = data.results.summary.failed;
+    if (responseText === "true") {
+      const sent = campaignData.recipients.length;
+      const failed = 0; // /email endpoint doesn't provide individual failure counts
 
       // Update progress in real-time (already complete, show 100%)
       updateProgress(sent, failed, total);
@@ -527,16 +516,15 @@ async function sendEmailCampaign(total) {
       // Show completion message
       showSendResults(sent, failed, total);
 
-      // Log strategy info
-      if (data.results.strategy) {
-        console.log('Campaign Strategy:', {
-          gmailCount: data.results.strategy.gmailCount,
-          otherCount: data.results.strategy.otherCount,
-          estimatedTime: data.results.strategy.estimatedTimeFormatted
-        });
-      }
+      console.log(`Campaign sent successfully to ${sent} recipients`);
     } else {
-      throw new Error(data.error || 'Campaign failed');
+      // Parse error response
+      try {
+        const errorData = JSON.parse(responseText);
+        throw new Error(errorData.message || 'Campaign failed');
+      } catch (parseError) {
+        throw new Error('Campaign failed: ' + responseText);
+      }
     }
 
   } catch (error) {

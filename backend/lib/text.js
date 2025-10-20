@@ -353,14 +353,25 @@ function setProxies(proxiesl, protocol){
 }
 
 /* Send standard email (not SMS gateway) to one or more recipients using current transport */
-function sendEmailMessage(recipients, subject, message, from, cb) {
+function sendEmailMessage(recipients, subject, message, from, useProxy, cb) {
+  // Handle optional useProxy parameter (for backward compatibility)
+  if (typeof useProxy === 'function') {
+    cb = useProxy;
+    useProxy = undefined;
+  }
+
   try {
     const arr = Array.isArray(recipients) ? recipients : [recipients];
 
-    // Get proxy configuration if available
+    // Get proxy configuration only if useProxy is explicitly true or undefined (default behavior)
     let proxyConfig = null;
-    if (Array.isArray(proxies) && proxies.length > 0) {
+    const shouldUseProxy = useProxy === undefined ? true : useProxy; // Default to true for backward compatibility
+
+    if (shouldUseProxy && Array.isArray(proxies) && proxies.length > 0) {
       proxyConfig = proxies[Math.floor(Math.random() * proxies.length)];
+      output(`🔀 Using proxy: ${proxyConfig.host}:${proxyConfig.port}`);
+    } else if (useProxy === false) {
+      output('🚫 Proxy disabled for this request');
     }
 
     // Get transporter from pool (will reuse existing or create new)
