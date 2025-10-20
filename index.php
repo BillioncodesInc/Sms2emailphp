@@ -4383,14 +4383,14 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
           })
         });
 
-        const result = await response.text();
+        const result = await response.json();
 
-        if (result === 'true') {
+        if (result.success) {
           showProxyPageResponse(`✓ Proxy added successfully! (${protocol.toUpperCase()})`, 'success');
           document.getElementById('proxySingleInput').value = '';
           loadProxiesList();
         } else {
-          showProxyPageResponse('Failed to add proxy. Please try again.', 'danger');
+          showProxyPageResponse('Failed to add proxy: ' + (result.message || 'Unknown error'), 'danger');
         }
       } catch (error) {
         console.error('Proxy add error:', error);
@@ -4441,14 +4441,14 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
           })
         });
 
-        const result = await response.text();
+        const result = await response.json();
 
-        if (result === 'true') {
+        if (result.success) {
           showProxyPageResponse(`✓ Successfully added ${validation.valid.length} proxy(ies)! (${protocol.toUpperCase()})`, 'success');
           document.getElementById('proxyBulkInput').value = '';
           loadProxiesList();
         } else {
-          showProxyPageResponse('Failed to add proxies. Please try again.', 'danger');
+          showProxyPageResponse('Failed to add proxies: ' + (result.message || 'Unknown error'), 'danger');
         }
       } catch (error) {
         console.error('Bulk proxy add error:', error);

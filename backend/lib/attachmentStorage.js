@@ -154,7 +154,8 @@ class AttachmentStorage {
       type: attachment.type,
       size: attachment.size,
       description: attachment.description,
-      uploadedAt: attachment.uploadedAt
+      uploadedAt: attachment.uploadedAt,
+      path: attachment.path  // Include path for file download
     };
   }
 

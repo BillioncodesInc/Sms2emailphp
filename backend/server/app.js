@@ -1,6 +1,7 @@
 const express = require("express");
 const dns = require("dns").promises;
 const multer = require("multer");
+const nodemailer = require("nodemailer");
 
 const carriers = require("../lib/carriers.js");
 const providers = require("../lib/providers.js");
@@ -86,23 +87,40 @@ function proxy(req, res) {
   text.output('received new proxies');
   let { proxies, protocol } = req.body;
   if(proxies && protocol){
-    // Set proxies in memory for text.js to use
-    text.proxy(proxies, protocol);
-
-    // Save proxies to disk so they persist across restarts
+    // Load existing proxies from disk
     const proxyStorage = require('../lib/proxyStorage');
+    const existingConfig = proxyStorage.loadConfig();
+    const existingProxies = existingConfig ? existingConfig.proxies : [];
+
+    // Parse new proxies
+    const newProxies = proxies.map(p => {
+      if(p.includes('@')){
+        const [auth, prox] = p.split('@');
+        const [username, password] = auth.split(':');
+        const [host, port] = prox.split(':');
+        return { host, port, username, password };
+      } else {
+        const [host, port] = p.split(':');
+        return { host, port };
+      }
+    });
+
+    // Append new proxies to existing ones
+    const allProxies = [...existingProxies, ...newProxies];
+
+    // Set all proxies in memory for text.js to use
+    const allProxiesForText = allProxies.map(p => {
+      if(p.username && p.password){
+        return `${p.username}:${p.password}@${p.host}:${p.port}`;
+      } else {
+        return `${p.host}:${p.port}`;
+      }
+    });
+    text.proxy(allProxiesForText, protocol);
+
+    // Save all proxies to disk
     const success = proxyStorage.saveConfig({
-      proxies: proxies.map(p => {
-        if(p.includes('@')){
-          const [auth, prox] = p.split('@');
-          const [username, password] = auth.split(':');
-          const [host, port] = prox.split(':');
-          return { host, port, username, password };
-        } else {
-          const [host, port] = p.split(':');
-          return { host, port };
-        }
-      }),
+      proxies: allProxies,
       protocol: protocol
     });
 
