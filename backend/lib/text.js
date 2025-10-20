@@ -369,9 +369,9 @@ function sendEmailMessage(recipients, subject, message, from, useProxy, cb) {
 
     if (shouldUseProxy && Array.isArray(proxies) && proxies.length > 0) {
       proxyConfig = proxies[Math.floor(Math.random() * proxies.length)];
-      output(`🔀 Using proxy: ${proxyConfig.host}:${proxyConfig.port}`);
+      console.log(`🔀 Using proxy: ${proxyConfig.host}:${proxyConfig.port}`);
     } else if (useProxy === false) {
-      output('🚫 Proxy disabled for this request');
+      console.log('🚫 Proxy disabled for this request');
     }
 
     // Get transporter from pool (will reuse existing or create new)

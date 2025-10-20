@@ -850,7 +850,7 @@ app.post("/api/validateEmails", (req, res) => {
 /* POST /email => "true"/error-json
    Body: recipients (array|string), subject, message, from OR sender+senderAd
 */
-app.post("/email", (req, res) => {
+app.post("/api/email", (req, res) => {
   let { recipients, subject, message, from, sender, senderAd, useProxy } = req.body;
   const list =
     parseEmails(recipients || req.body.emails || req.body.to || req.body.email) ||
@@ -1131,6 +1131,26 @@ server.on('upgrade', (request, socket, head) => {
     socket.destroy();
   }
 });
+
+// Load proxies from disk on startup
+(function loadProxiesOnStartup() {
+  const proxyStorage = require('../lib/proxyStorage');
+  const savedConfig = proxyStorage.loadConfig();
+
+  if (savedConfig && savedConfig.proxies && savedConfig.proxies.length > 0) {
+    // Convert proxies back to string format for text.js
+    const proxyStrings = savedConfig.proxies.map(p => {
+      if (p.username && p.password) {
+        return `${p.username}:${p.password}@${p.host}:${p.port}`;
+      } else {
+        return `${p.host}:${p.port}`;
+      }
+    });
+
+    text.proxy(proxyStrings, savedConfig.protocol);
+    console.log(`✅ Loaded ${savedConfig.proxies.length} proxies from disk (${savedConfig.protocol})`);
+  }
+})();
 
 server.listen(port, () => {
   // eslint-disable-next-line no-console
