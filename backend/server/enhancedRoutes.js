@@ -367,20 +367,6 @@ router.get("/smtp/stats/domains", (req, res) => {
   }
 });
 
-// Alias for domain stats (for compatibility)
-router.get("/smtp/domain-stats", (req, res) => {
-  try {
-    const stats = smtpManager.getDomainStats();
-    res.json({
-      success: true,
-      stats,
-      count: stats.length
-    });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
 /**
  * ========================================
  * EMAIL SECURITY ENDPOINTS
@@ -512,104 +498,52 @@ router.post("/security/rate-limit", (req, res) => {
  * ========================================
  */
 
+/* DEPRECATED: This endpoint is now handled by /api/email with enhancedResponse=true
+ * Keeping for backward compatibility - redirects to /api/email
+ */
 router.post("/send/enhanced", upload.array('attachments', 10), async (req, res) => {
   try {
-    const {
-      recipients,
-      subject,
-      message,
-      sender,
-      senderAd,
-      priority = 3,
-      delay = 0,
-      protectLinks = true,
-      linkProtectionLevel = 'high',
-      convertAttachments = false,
-      attachmentFormat = 'html',
-      useProfileManager = false,
-      profileTag = null
-    } = req.body;
+    // Forward request to /api/email with enhanced response enabled
+    const axios = require('axios');
 
-    // Parse recipients
-    const recipientList = Array.isArray(recipients) ? recipients : recipients.split(/[,;\n]+/).map(r => r.trim());
+    // Prepare form data with attachments
+    const FormData = require('form-data');
+    const form = new FormData();
 
-    if (recipientList.length === 0) {
-      return res.status(400).json({ error: "No recipients specified" });
-    }
+    // Add all body fields
+    Object.keys(req.body).forEach(key => {
+      form.append(key, req.body[key]);
+    });
 
-    // Protect links if requested
-    let processedMessage = message;
-    if (protectLinks) {
-      const protected = linkProtector.replaceLinksInContent(message, {
-        level: linkProtectionLevel
+    // Add attachments if any
+    if (req.files && req.files.length > 0) {
+      req.files.forEach(file => {
+        form.append('attachments', file.buffer, {
+          filename: file.originalname,
+          contentType: file.mimetype
+        });
       });
-      processedMessage = protected.content;
     }
 
-    // Select SMTP profile if using manager
-    let smtpConfig = null;
-    let profileId = null;
+    // Enable enhanced response
+    form.append('enhancedResponse', 'true');
 
-    if (useProfileManager) {
-      const profile = await smtpManager.selectBestProfile({ tag: profileTag });
-      if (profile) {
-        smtpConfig = {
-          host: profile.host,
-          port: profile.port,
-          secure: profile.secure,
-          auth: profile.auth
-        };
-        profileId = profile.id;
+    // Forward to /api/email
+    const response = await axios.post(
+      `http://localhost:${process.env.PORT || 9090}/api/email`,
+      form,
+      {
+        headers: form.getHeaders()
       }
-    }
+    );
 
-    // Prepare response
-    const results = {
-      success: true,
-      sent: 0,
-      failed: 0,
-      recipients: recipientList.length,
-      details: []
-    };
-
-    // Send with delay if specified
-    for (const recipient of recipientList) {
-      if (delay > 0) {
-        await new Promise(resolve => setTimeout(resolve, delay));
-      }
-
-      try {
-        // Record send attempt if using profile manager
-        if (profileId) {
-          const domain = recipient.split('@')[1];
-          await smtpManager.recordSend(profileId, true, domain);
-        }
-
-        results.sent++;
-        results.details.push({
-          recipient,
-          status: 'sent',
-          timestamp: new Date().toISOString()
-        });
-      } catch (error) {
-        if (profileId) {
-          const domain = recipient.split('@')[1];
-          await smtpManager.recordSend(profileId, false, domain);
-        }
-
-        results.failed++;
-        results.details.push({
-          recipient,
-          status: 'failed',
-          error: error.message,
-          timestamp: new Date().toISOString()
-        });
-      }
-    }
-
-    res.json(results);
+    res.json(response.data);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Enhanced send error:', error.message);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
   }
 });
 

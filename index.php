@@ -5051,7 +5051,7 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
       showChatGPTResponse('Testing connection...', 'info');
 
       try {
-        const response = await fetch(`${API_BASE}/chatgpt/rephrase`, {
+        const response = await fetch(`${API_LEGACY}/chatgpt/rephrase`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -5095,7 +5095,7 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
       showTempAlert('Rephrasing with AI...', 'info');
 
       try {
-        const response = await fetch(`${API_BASE}/chatgpt/rephrase`, {
+        const response = await fetch(`${API_LEGACY}/chatgpt/rephrase`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

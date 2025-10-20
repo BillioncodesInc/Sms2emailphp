@@ -9,9 +9,49 @@
       "port": "1080",
       "username": "user",
       "password": "pass"
+    },
+    {
+      "host": "proxy1.example.com",
+      "port": "8080"
+    },
+    {
+      "host": "proxy2.example.com",
+      "port": "3128"
+    },
+    {
+      "host": "proxy3.example.com",
+      "port": "8080",
+      "username": "testuser",
+      "password": "testpass"
+    },
+    {
+      "host": "proxy4.example.com",
+      "port": "3128",
+      "username": "admin",
+      "password": "secret123"
+    },
+    {
+      "host": "proxy1.example.com",
+      "port": "8080"
+    },
+    {
+      "host": "proxy2.example.com",
+      "port": "3128"
+    },
+    {
+      "host": "proxy3.example.com",
+      "port": "8080",
+      "username": "testuser",
+      "password": "testpass"
+    },
+    {
+      "host": "proxy4.example.com",
+      "port": "3128",
+      "username": "admin",
+      "password": "secret123"
     }
   ],
-  "protocol": "http",
-  "lastUpdated": "2025-10-19T01:19:48.408Z",
+  "protocol": "socks5",
+  "lastUpdated": "2025-10-20T22:45:40.874Z",
   "version": "1.0"
 }

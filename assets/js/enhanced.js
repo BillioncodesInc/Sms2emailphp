@@ -920,7 +920,7 @@ async function loadDomainStats() {
     showSpinner(true);
 
     try {
-        const response = await fetchAPI('/smtp/domain-stats');
+        const response = await fetchAPI('/smtp/stats/domains');
 
         if (response.success) {
             const container = document.getElementById('domain-stats-table');

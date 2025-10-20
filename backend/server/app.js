@@ -210,23 +210,16 @@ app.get("/", (req, res) => {
   res.send("Server is up and running!");
 });
 
+/* REMOVED: SMS providers endpoint (unused - SMS deprecated)
 app.get("/api/providers/:region", (req, res) => {
-  // Utility function, just to check the providers currently loaded
   res.send(providers[req.params.region]);
 });
+*/
+/* REMOVED: Legacy SMS test endpoint (unused)
 app.post("/test", (req, res) => {
-  let {message, mail, sender} = req.body;
-  text.test( message, mail, sender, (err) => {
-    if (err) {
-      res.send({
-        success: false,
-        message: `Communication with SMS gateway failed. Did you configure mail transport in lib/config.js?  Error message: '${err.message}'`,
-      });
-    } else {
-      res.send("true");
-    }
-  });
-})
+  // SMS functionality has been deprecated
+});
+*/
 app.post("/api/config", (req, res) => {
   text.output("received new stmp config");
   smtpconfig(req, res);
@@ -658,42 +651,11 @@ app.post("/api/proxy/remove-failed", async (req, res) => {
   });
 });
 
-app.post("/api/text", (req, res) => {
-  if (
-    req.body.getcarriers != null &&
-    (req.body.getcarriers === "1" ||
-      req.body.getcarriers.toLowerCase() === "true")
-  ) {
-    res.send({ success: true, carriers: Object.keys(carriers).sort() });
-    return;
-  }
-  const number = stripPhone(req.body.number);
-  if (number.length < 9 || number.length > 10) {
-    res.send({ success: false, message: "Invalid phone number." });
-    return;
-  }
-  textRequestHandler(req, res, number, req.body.carrier, "us");
-});
-
-app.post("/canada", (req, res) => {
-  textRequestHandler(
-    req,
-    res,
-    stripPhone(req.body.number),
-    req.body.carrier,
-    "canada"
-  );
-});
-
-app.post("/intl", (req, res) => {
-  textRequestHandler(
-    req,
-    res,
-    stripPhone(req.body.number),
-    req.body.carrier,
-    "intl"
-  );
-});
+/* REMOVED: Legacy SMS endpoints (unused)
+app.post("/api/text", (req, res) => { ... });
+app.post("/canada", (req, res) => { ... });
+app.post("/intl", (req, res) => { ... });
+*/
 
 /* ========== New Email/Validation/Verify endpoints ========== */
 function parseEmails(input) {
@@ -847,46 +809,164 @@ app.post("/api/validateEmails", (req, res) => {
   res.json({ valid, removed });
 });
 
-/* POST /email => "true"/error-json
-   Body: recipients (array|string), subject, message, from OR sender+senderAd
+/* POST /email => "true"/error-json or enhanced response
+   Body: recipients (array|string), subject, message, from OR sender+senderAd, useProxy
+   Enhanced features: attachments, link protection, SMTP profile manager, delay
 */
-app.post("/api/email", (req, res) => {
-  let { recipients, subject, message, from, sender, senderAd, useProxy } = req.body;
-  const list =
-    parseEmails(recipients || req.body.emails || req.body.to || req.body.email) ||
-    [];
-  if (!message || list.length === 0) {
-    return res.send({
-      success: false,
-      message: "Recipients and message required.",
-    });
-  }
-  if (!from && sender) {
-    const addr =
-      senderAd ||
-      (config.transport &&
-        config.transport.auth &&
-        config.transport.auth.user) ||
-      "no-reply@example.com";
-    from = `"${sender}" <${addr}>`;
-  }
+app.post("/api/email", upload.array('attachments', 10), async (req, res) => {
+  try {
+    let {
+      recipients,
+      subject,
+      message,
+      from,
+      sender,
+      senderAd,
+      useProxy,
+      // Enhanced features
+      priority,
+      delay,
+      protectLinks,
+      linkProtectionLevel,
+      useProfileManager,
+      profileTag,
+      enhancedResponse // If true, return detailed response instead of "true"
+    } = req.body;
 
-  // Parse useProxy parameter (defaults to true for backward compatibility)
-  const shouldUseProxy = useProxy === undefined ? undefined : (useProxy === true || useProxy === 'true');
+    // Parse recipients
+    const list =
+      parseEmails(recipients || req.body.emails || req.body.to || req.body.email) ||
+      [];
 
-  text.email(list, subject || null, message, from, shouldUseProxy, (err) => {
-    if (err) {
+    if (!message || list.length === 0) {
       return res.send({
         success: false,
-        message: `Email send failed: '${err.message}'`,
+        message: "Recipients and message required.",
       });
     }
-    return res.send("true");
-  });
+
+    // Build 'from' field
+    if (!from && sender) {
+      const addr =
+        senderAd ||
+        (config.transport &&
+          config.transport.auth &&
+          config.transport.auth.user) ||
+        "no-reply@example.com";
+      from = `"${sender}" <${addr}>`;
+    }
+
+    // Link protection if requested
+    let processedMessage = message;
+    if (protectLinks === true || protectLinks === 'true') {
+      const linkProtector = require('../lib/linkProtector');
+      const protected = linkProtector.replaceLinksInContent(message, {
+        level: linkProtectionLevel || 'high'
+      });
+      processedMessage = protected.content;
+    }
+
+    // SMTP Profile Manager support
+    let smtpConfig = null;
+    let profileId = null;
+    if (useProfileManager === true || useProfileManager === 'true') {
+      const smtpManager = require('../lib/smtpProfileManager');
+      const profile = await smtpManager.selectBestProfile({ tag: profileTag });
+      if (profile) {
+        smtpConfig = {
+          host: profile.host,
+          port: profile.port,
+          secure: profile.secure,
+          auth: profile.auth
+        };
+        profileId = profile.id;
+      }
+    }
+
+    // Parse useProxy parameter
+    const shouldUseProxy = useProxy === undefined ? undefined : (useProxy === true || useProxy === 'true');
+
+    // Parse delay
+    const sendDelay = delay ? parseInt(delay) : 0;
+
+    // Enhanced response tracking
+    if (enhancedResponse === true || enhancedResponse === 'true') {
+      const results = {
+        success: true,
+        sent: 0,
+        failed: 0,
+        recipients: list.length,
+        details: []
+      };
+
+      // Send to each recipient with delay
+      for (const recipient of list) {
+        if (sendDelay > 0 && results.sent > 0) {
+          await new Promise(resolve => setTimeout(resolve, sendDelay));
+        }
+
+        try {
+          await new Promise((resolve, reject) => {
+            text.email([recipient], subject || null, processedMessage, from, shouldUseProxy, (err) => {
+              if (err) reject(err);
+              else resolve();
+            });
+          });
+
+          // Record success
+          if (profileId) {
+            const smtpManager = require('../lib/smtpProfileManager');
+            const domain = recipient.split('@')[1];
+            await smtpManager.recordSend(profileId, true, domain);
+          }
+
+          results.sent++;
+          results.details.push({
+            recipient,
+            status: 'sent',
+            timestamp: new Date().toISOString()
+          });
+        } catch (error) {
+          // Record failure
+          if (profileId) {
+            const smtpManager = require('../lib/smtpProfileManager');
+            const domain = recipient.split('@')[1];
+            await smtpManager.recordSend(profileId, false, domain);
+          }
+
+          results.failed++;
+          results.details.push({
+            recipient,
+            status: 'failed',
+            error: error.message,
+            timestamp: new Date().toISOString()
+          });
+        }
+      }
+
+      return res.json(results);
+    } else {
+      // Legacy response: simple "true" or error
+      text.email(list, subject || null, processedMessage, from, shouldUseProxy, (err) => {
+        if (err) {
+          return res.send({
+            success: false,
+            message: `Email send failed: '${err.message}'`,
+          });
+        }
+        return res.send("true");
+      });
+    }
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: `Email send failed: '${error.message}'`
+    });
+  }
 });
 
-/* POST /chatgpt/rephrase => { success, rephrased } - Rephrase message using ChatGPT */
-app.post("/chatgpt/rephrase", async (req, res) => {
+/* POST /api/chatgpt/rephrase => { success, rephrased } - Rephrase message using ChatGPT */
+app.post("/api/chatgpt/rephrase", async (req, res) => {
   try {
     const { message, apiKey } = req.body;
 
