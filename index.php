@@ -1713,7 +1713,7 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
           <div class="row mb-3">
             <div class="col-md-6">
               <label class="form-label">SMTP Service (Optional)</label>
-              <select class="form-select" id="singleSmtpService" style="background: rgba(255,255,255,0.1); color: white; border-color: rgba(255,255,255,0.2);">
+              <select class="form-select" id="singleSmtpService" style="background: rgba(255,255,255,0.15); color: #ffffff; border-color: rgba(255,255,255,0.3);">
                 <option value="">--Please choose a Service--</option>
                 <?php
                 $smtpServices = array("126","163","1und1","AOL","DebugMail","DynectEmail","FastMail","GandiMail","Gmail","Godaddy","GodaddyAsia","GodaddyEurope","hot.ee","Hotmail","iCloud","mail.ee","Mail.ru","Maildev","Mailgun","Mailjet","Mailosaur","Mandrill","Naver","OpenMailBox","Outlook365","Postmark","QQ","QQex","SendCloud","SendGrid","SendinBlue","SendPulse","SES","SES-US-EAST-1","SES-US-WEST-2","SES-EU-WEST-1","Sparkpost","Yahoo","Yandex","Zoho","qiye.aliyun");
@@ -1722,7 +1722,7 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
                 }
                 ?>
               </select>
-              <small class="text-muted">Leave blank for custom SMTP configuration</small>
+              <small class="text-muted" style="color: rgba(255,255,255,0.7) !important;">Select the email service provider (Gmail, Outlook, Yahoo, etc.)</small>
             </div>
             <div class="col-md-6">
               <label class="form-label">SSL/TLS</label>
@@ -1739,11 +1739,11 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
           <div class="row mb-3">
             <div class="col-md-6">
               <label class="form-label">Username/Email</label>
-              <input type="text" class="form-control" id="singleSmtpUsername" placeholder="user@example.com" style="background: rgba(255,255,255,0.1); color: white; border-color: rgba(255,255,255,0.2);">
+              <input type="text" class="form-control" id="singleSmtpUsername" placeholder="user@example.com" style="background: rgba(255,255,255,0.15); color: #ffffff; border-color: rgba(255,255,255,0.3);">
             </div>
             <div class="col-md-6">
               <label class="form-label">Password</label>
-              <input type="password" class="form-control" id="singleSmtpPassword" placeholder="••••••••" style="background: rgba(255,255,255,0.1); color: white; border-color: rgba(255,255,255,0.2);">
+              <input type="password" class="form-control" id="singleSmtpPassword" placeholder="••••••••" style="background: rgba(255,255,255,0.15); color: #ffffff; border-color: rgba(255,255,255,0.3);">
             </div>
           </div>
 
@@ -1785,16 +1785,18 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
           <!-- SMTP Service Selection -->
           <div class="row mb-3">
             <div class="col-md-6">
-              <label class="form-label">SMTP Service (Optional)</label>
-              <select class="form-select" id="bulkSmtpService" style="background: rgba(255,255,255,0.1); color: white; border-color: rgba(255,255,255,0.2);">
-                <option value="">Auto-detect from domain</option>
+              <label class="form-label">SMTP Service</label>
+              <select class="form-select" id="bulkSmtpService" style="background: rgba(255,255,255,0.15); color: white; border-color: rgba(255,255,255,0.3);">
+                <option value="">-- Select Service --</option>
+                <option value="none">Custom SMTP (provide host:port)</option>
+                <option disabled>──────────</option>
                 <?php
                 foreach($smtpServices as $service){
                   echo "<option value='" . htmlspecialchars($service, ENT_QUOTES, 'UTF-8') . "'>" . htmlspecialchars($service, ENT_QUOTES, 'UTF-8') . "</option>";
                 }
                 ?>
               </select>
-              <small class="text-muted">Leave blank for auto-detection</small>
+              <small class="text-muted" style="color: rgba(255,255,255,0.7) !important;">Select a service or choose "Custom SMTP" for manual configuration</small>
             </div>
             <div class="col-md-6">
               <label class="form-label">SSL/TLS</label>
@@ -1809,9 +1811,12 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
 
           <!-- Bulk SMTP List -->
           <div class="mb-3">
-            <label class="form-label">Bulk SMTP List (password|email format)</label>
-            <textarea class="form-control" id="bulkSmtpList" rows="6" placeholder="password123|user1@gmail.com&#10;mypass456|user2@yahoo.com&#10;secret789|user3@outlook.com" style="background: rgba(255,255,255,0.1); color: white; border-color: rgba(255,255,255,0.2); font-family: monospace;"></textarea>
-            <small class="text-muted">Format: password|email (one per line)</small>
+            <label class="form-label" id="bulkSmtpListLabel">Bulk SMTP List</label>
+            <textarea class="form-control" id="bulkSmtpList" rows="6" placeholder="password123|user1@gmail.com&#10;mypass456|user2@yahoo.com&#10;secret789|user3@outlook.com" style="background: rgba(255,255,255,0.15); color: #ffffff; border-color: rgba(255,255,255,0.3); font-family: monospace;"></textarea>
+            <small class="text-muted" id="bulkSmtpFormatHelp" style="color: rgba(255,255,255,0.7) !important;">
+              <strong>With Service Selected:</strong> password|email (one per line)<br>
+              <strong>Without Service (Custom):</strong> host|port|username|password (one per line)
+            </small>
           </div>
 
           <!-- Test Buttons -->
@@ -3068,6 +3073,32 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
     // ============================================
     // Bulk SMTP Configuration Functions
     // ============================================
+
+    // Update bulk SMTP placeholder based on service selection
+    function updateBulkSmtpPlaceholder() {
+      const service = document.getElementById('bulkSmtpService').value;
+      const textarea = document.getElementById('bulkSmtpList');
+      const helpText = document.getElementById('bulkSmtpFormatHelp');
+
+      if (service && service !== '' && service !== 'none') {
+        // With service: password|email format
+        textarea.placeholder = 'password123|user1@gmail.com\nmypass456|user2@yahoo.com\nsecret789|user3@outlook.com';
+        helpText.innerHTML = '<strong style="color: #10b981;">Format:</strong> password|email (one per line)';
+      } else {
+        // Without service: host|port|username|password format
+        textarea.placeholder = 'smtp.example.com|587|user@example.com|password123\nmail.domain.com|465|admin@domain.com|secret456';
+        helpText.innerHTML = '<strong style="color: #f59e0b;">Format:</strong> host|port|username|password (one per line)';
+      }
+    }
+
+    // Add event listener for service change
+    document.addEventListener('DOMContentLoaded', function() {
+      const bulkServiceSelect = document.getElementById('bulkSmtpService');
+      if (bulkServiceSelect) {
+        bulkServiceSelect.addEventListener('change', updateBulkSmtpPlaceholder);
+        updateBulkSmtpPlaceholder(); // Set initial state
+      }
+    });
 
     async function saveBulkSMTPConfig() {
       try {
