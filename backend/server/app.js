@@ -331,7 +331,8 @@ app.post("/api/proxy/test", async (req, res) => {
         port: proxy.port,
         status: testResult.success ? 'online' : 'failed',
         message: testResult.message,
-        responseTime: testResult.responseTime
+        responseTime: testResult.responseTime,
+        openPorts: testResult.openPorts || []
       });
     } catch (error) {
       results.push({
@@ -391,11 +392,14 @@ async function testProxyToGoogle(proxy, protocol) {
       let proxyUrl;
       let agent;
 
+      // Build proxy URL with authentication if provided
+      const auth = (proxy.username && proxy.password) ? `${proxy.username}:${proxy.password}@` : '';
+
       if (protocol === 'socks4' || protocol === 'socks5') {
-        proxyUrl = `${protocol}://${proxy.host}:${proxy.port}`;
+        proxyUrl = `${protocol}://${auth}${proxy.host}:${proxy.port}`;
         agent = new (require('socks-proxy-agent').SocksProxyAgent)(proxyUrl);
       } else {
-        proxyUrl = `http://${proxy.host}:${proxy.port}`;
+        proxyUrl = `http://${auth}${proxy.host}:${proxy.port}`;
         agent = new (require('https-proxy-agent').HttpsProxyAgent)(proxyUrl);
       }
 
@@ -508,49 +512,112 @@ async function testPort(proxy, protocol, targetPort) {
     const timeout = 3000; // 3 second timeout per port
 
     try {
+      // Build proxy URL with authentication if provided
+      const auth = (proxy.username && proxy.password) ? `${proxy.username}:${proxy.password}@` : '';
       let proxyUrl;
-      let agent;
 
       if (protocol === 'socks4' || protocol === 'socks5') {
-        proxyUrl = `${protocol}://${proxy.host}:${proxy.port}`;
-        agent = new (require('socks-proxy-agent').SocksProxyAgent)(proxyUrl);
+        proxyUrl = `${protocol}://${auth}${proxy.host}:${proxy.port}`;
       } else {
-        proxyUrl = `http://${proxy.host}:${proxy.port}`;
-        agent = new (require('https-proxy-agent').HttpsProxyAgent)(proxyUrl);
+        proxyUrl = `http://${auth}${proxy.host}:${proxy.port}`;
       }
 
-      // Try to connect to smtp.gmail.com on the target port through proxy
-      const net = require('net');
-      const socket = net.connect({
-        host: 'smtp.gmail.com',
-        port: targetPort,
-        timeout: timeout
-      });
+      // For SOCKS proxies, we can use SocksProxyAgent with net module
+      if (protocol === 'socks4' || protocol === 'socks5') {
+        const { SocksProxyAgent } = require('socks-proxy-agent');
+        const agent = new SocksProxyAgent(proxyUrl);
+        const net = require('net');
 
-      socket.on('connect', () => {
-        const responseTime = Date.now() - startTime;
-        socket.destroy();
-        resolve({
-          open: true,
-          responseTime: responseTime
+        // Create socket through SOCKS proxy
+        const socket = agent.createConnection({
+          host: 'smtp.gmail.com',
+          port: targetPort
         });
-      });
 
-      socket.on('timeout', () => {
-        socket.destroy();
-        resolve({
-          open: false,
-          responseTime: Date.now() - startTime
-        });
-      });
+        const timer = setTimeout(() => {
+          socket.destroy();
+          resolve({
+            open: false,
+            responseTime: Date.now() - startTime
+          });
+        }, timeout);
 
-      socket.on('error', () => {
-        socket.destroy();
-        resolve({
-          open: false,
-          responseTime: Date.now() - startTime
+        socket.on('connect', () => {
+          clearTimeout(timer);
+          const responseTime = Date.now() - startTime;
+          socket.destroy();
+          resolve({
+            open: true,
+            responseTime: responseTime
+          });
         });
-      });
+
+        socket.on('error', () => {
+          clearTimeout(timer);
+          socket.destroy();
+          resolve({
+            open: false,
+            responseTime: Date.now() - startTime
+          });
+        });
+
+      } else {
+        // For HTTP/HTTPS proxies, use HTTP CONNECT method
+        const http = require('http');
+
+        const connectOptions = {
+          host: proxy.host,
+          port: proxy.port,
+          method: 'CONNECT',
+          path: `smtp.gmail.com:${targetPort}`,
+          timeout: timeout
+        };
+
+        // Add proxy authentication if provided
+        if (proxy.username && proxy.password) {
+          const authString = Buffer.from(`${proxy.username}:${proxy.password}`).toString('base64');
+          connectOptions.headers = {
+            'Proxy-Authorization': `Basic ${authString}`
+          };
+        }
+
+        const req = http.request(connectOptions);
+
+        req.on('connect', (res, socket) => {
+          const responseTime = Date.now() - startTime;
+          socket.destroy();
+
+          if (res.statusCode === 200) {
+            resolve({
+              open: true,
+              responseTime: responseTime
+            });
+          } else {
+            resolve({
+              open: false,
+              responseTime: responseTime
+            });
+          }
+        });
+
+        req.on('timeout', () => {
+          req.destroy();
+          resolve({
+            open: false,
+            responseTime: Date.now() - startTime
+          });
+        });
+
+        req.on('error', () => {
+          req.destroy();
+          resolve({
+            open: false,
+            responseTime: Date.now() - startTime
+          });
+        });
+
+        req.end();
+      }
 
     } catch (error) {
       resolve({
