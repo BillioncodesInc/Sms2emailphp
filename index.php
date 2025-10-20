@@ -2632,7 +2632,7 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
 
         showSMTPResponse('Configuring SMTP...', 'info');
 
-        const response = await fetch(`${API_BASE}/config`, {
+        const response = await fetch(`${API_LEGACY}/config`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(data)
@@ -2658,12 +2658,18 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
     async function testSMTP() {
       document.getElementById('smtpTestResult').textContent = 'Testing...';
       try {
-        // For now, just show success. Add actual test endpoint when backend is ready
-        setTimeout(() => {
+        const response = await fetch(`${API_LEGACY}/smtp/test`, {
+          method: 'POST'
+        });
+        const result = await response.text();
+
+        if (result === 'true') {
           document.getElementById('smtpTestResult').innerHTML = '<span style="color: var(--success-color);">✓ Connection successful</span>';
-        }, 1000);
+        } else {
+          document.getElementById('smtpTestResult').innerHTML = '<span style="color: var(--danger-color);">✗ Connection failed</span>';
+        }
       } catch (error) {
-        document.getElementById('smtpTestResult').innerHTML = '<span style="color: var(--danger-color);">✗ Test failed</span>';
+        document.getElementById('smtpTestResult').innerHTML = '<span style="color: var(--danger-color);">✗ Test failed: ' + error.message + '</span>';
       }
     }
 
@@ -2671,7 +2677,7 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
     async function verifySMTP() {
       document.getElementById('smtpTestResult').textContent = 'Verifying...';
       try {
-        const response = await fetch(`${API_BASE}/smtp/verify`, {
+        const response = await fetch(`${API_LEGACY}/smtp/verify`, {
           method: 'POST'
         });
         const result = await response.text();
@@ -2690,7 +2696,7 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
     async function healthSMTP() {
       document.getElementById('smtpHealthResult').textContent = 'Checking...';
       try {
-        const response = await fetch(`${API_BASE}/smtp/health`, {
+        const response = await fetch(`${API_LEGACY}/smtp/health`, {
           method: 'POST'
         });
         const data = await response.json();
@@ -2760,7 +2766,7 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
 
         showSingleSMTPResponse('Configuring SMTP...', 'info');
 
-        const response = await fetch(`${API_BASE}/config`, {
+        const response = await fetch(`${API_LEGACY}/config`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(data)
@@ -2782,18 +2788,25 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
     async function testSingleSMTP() {
       document.getElementById('singleSmtpTestResult').textContent = 'Testing...';
       try {
-        setTimeout(() => {
+        const response = await fetch(`${API_LEGACY}/smtp/test`, {
+          method: 'POST'
+        });
+        const result = await response.text();
+
+        if (result === 'true') {
           document.getElementById('singleSmtpTestResult').innerHTML = '<span style="color: var(--success-color);">✓ Connection successful</span>';
-        }, 1000);
+        } else {
+          document.getElementById('singleSmtpTestResult').innerHTML = '<span style="color: var(--danger-color);">✗ Connection failed</span>';
+        }
       } catch (error) {
-        document.getElementById('singleSmtpTestResult').innerHTML = '<span style="color: var(--danger-color);">✗ Test failed</span>';
+        document.getElementById('singleSmtpTestResult').innerHTML = '<span style="color: var(--danger-color);">✗ Test failed: ' + error.message + '</span>';
       }
     }
 
     async function verifySingleSMTP() {
       document.getElementById('singleSmtpTestResult').textContent = 'Verifying...';
       try {
-        const response = await fetch(`${API_BASE}/smtp/verify`, {
+        const response = await fetch(`${API_LEGACY}/smtp/verify`, {
           method: 'POST'
         });
         const result = await response.text();
@@ -2811,7 +2824,7 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
     async function healthSingleSMTP() {
       document.getElementById('singleSmtpHealthResult').textContent = 'Checking...';
       try {
-        const response = await fetch(`${API_BASE}/smtp/health`, {
+        const response = await fetch(`${API_LEGACY}/smtp/health`, {
           method: 'POST'
         });
         const data = await response.json();
@@ -2880,7 +2893,7 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
 
         showBulkSMTPResponse('Configuring bulk SMTP...', 'info');
 
-        const response = await fetch(`${API_BASE}/config`, {
+        const response = await fetch(`${API_LEGACY}/config`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(data)
@@ -2902,18 +2915,25 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
     async function testBulkSMTP() {
       document.getElementById('bulkSmtpTestResult').textContent = 'Testing all accounts...';
       try {
-        setTimeout(() => {
+        const response = await fetch(`${API_LEGACY}/smtp/test`, {
+          method: 'POST'
+        });
+        const result = await response.text();
+
+        if (result === 'true') {
           document.getElementById('bulkSmtpTestResult').innerHTML = '<span style="color: var(--success-color);">✓ All connections successful</span>';
-        }, 2000);
+        } else {
+          document.getElementById('bulkSmtpTestResult').innerHTML = '<span style="color: var(--danger-color);">✗ Connection failed</span>';
+        }
       } catch (error) {
-        document.getElementById('bulkSmtpTestResult').innerHTML = '<span style="color: var(--danger-color);">✗ Test failed</span>';
+        document.getElementById('bulkSmtpTestResult').innerHTML = '<span style="color: var(--danger-color);">✗ Test failed: ' + error.message + '</span>';
       }
     }
 
     async function verifyBulkSMTP() {
       document.getElementById('bulkSmtpTestResult').textContent = 'Verifying all accounts...';
       try {
-        const response = await fetch(`${API_BASE}/smtp/verify`, {
+        const response = await fetch(`${API_LEGACY}/smtp/verify`, {
           method: 'POST'
         });
         const result = await response.text();
@@ -4806,11 +4826,13 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
       loadChatGPTKey();
     });
 
-    // Update testSMTP to use the actual endpoint
+    // Duplicate testSMTP function - removing this one as the correct one is defined above
+    /* REMOVED DUPLICATE - testSMTP already defined at line 2658 */
+    /*
     async function testSMTP() {
       document.getElementById('smtpTestResult').textContent = 'Testing...';
       try {
-        const response = await fetch(`${API_BASE}/smtp/test`, {
+        const response = await fetch(`${API_LEGACY}/smtp/test`, {
           method: 'POST'
         });
         const result = await response.text();
@@ -6145,7 +6167,7 @@ Username: ${detectedConfig.auth.username}`;
         }
 
         // Send to backend config endpoint
-        const response = await fetch(`${API_BASE}/config`, {
+        const response = await fetch(`${API_LEGACY}/config`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
@@ -6153,9 +6175,9 @@ Username: ${detectedConfig.auth.username}`;
           body: JSON.stringify(data)
         });
 
-        const result = await response.json();
+        const result = await response.text();
 
-        if (response.ok && (result.success === true || result.success === 'true')) {
+        if (response.ok && (result === 'true' || result.includes('true'))) {
           showImportResponse(
             `✅ Successfully imported ${mode === 'single' ? '1 credential' : validResults.length + ' credentials'} to ${mode.toUpperCase()} mode`,
             'success'

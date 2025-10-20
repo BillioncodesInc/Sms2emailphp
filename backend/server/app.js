@@ -86,10 +86,29 @@ function proxy(req, res) {
   text.output('received new proxies');
   let { proxies, protocol } = req.body;
   if(proxies && protocol){
+    // Set proxies in memory for text.js to use
     text.proxy(proxies, protocol);
-    res.send('true');
+
+    // Save proxies to disk so they persist across restarts
+    const proxyStorage = require('../lib/proxyStorage');
+    const success = proxyStorage.saveConfig({
+      proxies: proxies.map(p => {
+        if(p.includes('@')){
+          const [auth, prox] = p.split('@');
+          const [username, password] = auth.split(':');
+          const [host, port] = prox.split(':');
+          return { host, port, username, password };
+        } else {
+          const [host, port] = p.split(':');
+          return { host, port };
+        }
+      }),
+      protocol: protocol
+    });
+
+    res.json({ success, message: success ? 'Proxies saved successfully' : 'Failed to save proxies' });
   } else {
-    res.send("false");
+    res.json({ success: false, message: 'Invalid proxy data' });
   }
 }
 function smtpconfig(req, res) {
@@ -623,8 +642,8 @@ const disposable = new Set([
   "fakeinbox.com",
 ]);
 
-/* POST /smtp/test => "true"/"false" - Test SMTP connection */
-app.post("/smtp/test", async (req, res) => {
+/* POST /api/smtp/test => "true"/"false" - Test SMTP connection */
+app.post("/api/smtp/test", async (req, res) => {
   try {
     if (!config.transport || !config.transport.auth) {
       return res.send("false");
@@ -640,16 +659,16 @@ app.post("/smtp/test", async (req, res) => {
   }
 });
 
-/* POST /smtp/verify => "true"/"false" */
-app.post("/smtp/verify", (req, res) => {
+/* POST /api/smtp/verify => "true"/"false" */
+app.post("/api/smtp/verify", (req, res) => {
   text.verify((err, ok) => {
     if (err || !ok) return res.send("false");
     return res.send("true");
   });
 });
 
-/* POST /smtp/health => JSON with domain, hasMX, hasSPF, hasDMARC */
-app.post("/smtp/health", async (req, res) => {
+/* POST /api/smtp/health => JSON with domain, hasMX, hasSPF, hasDMARC */
+app.post("/api/smtp/health", async (req, res) => {
   try {
     const user =
       (config.transport &&
