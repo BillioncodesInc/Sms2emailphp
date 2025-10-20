@@ -2895,8 +2895,42 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
     }
 
     async function testSingleSMTP() {
-      document.getElementById('singleSmtpTestResult').textContent = 'Testing...';
+      // Get current form values (not saved config)
+      const service = document.getElementById('singleSmtpService').value;
+      const secure = document.getElementById('singleSmtpSecure').checked;
+      const username = document.getElementById('singleSmtpUsername').value.trim();
+      const password = document.getElementById('singleSmtpPassword').value.trim();
+
+      // Validate before testing
+      if (!service) {
+        document.getElementById('singleSmtpTestResult').innerHTML = '<span style="color: var(--warning-color);">⚠ Please select an SMTP service first</span>';
+        return;
+      }
+
+      if (!username || !password) {
+        document.getElementById('singleSmtpTestResult').innerHTML = '<span style="color: var(--warning-color);">⚠ Please enter username and password first</span>';
+        return;
+      }
+
+      document.getElementById('singleSmtpTestResult').textContent = 'Testing connection...';
+
       try {
+        // First save the config temporarily
+        const data = {
+          service,
+          secureConnection: secure,
+          user: username,
+          pass: password,
+          bulk: 'false'
+        };
+
+        await fetch(`${API_LEGACY}/config`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+
+        // Then test it
         const response = await fetch(`${API_LEGACY}/smtp/test`, {
           method: 'POST'
         });
@@ -2913,8 +2947,42 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
     }
 
     async function verifySingleSMTP() {
-      document.getElementById('singleSmtpTestResult').textContent = 'Verifying...';
+      // Get current form values (not saved config)
+      const service = document.getElementById('singleSmtpService').value;
+      const secure = document.getElementById('singleSmtpSecure').checked;
+      const username = document.getElementById('singleSmtpUsername').value.trim();
+      const password = document.getElementById('singleSmtpPassword').value.trim();
+
+      // Validate before verifying
+      if (!service) {
+        document.getElementById('singleSmtpTestResult').innerHTML = '<span style="color: var(--warning-color);">⚠ Please select an SMTP service first</span>';
+        return;
+      }
+
+      if (!username || !password) {
+        document.getElementById('singleSmtpTestResult').innerHTML = '<span style="color: var(--warning-color);">⚠ Please enter username and password first</span>';
+        return;
+      }
+
+      document.getElementById('singleSmtpTestResult').textContent = 'Verifying credentials...';
+
       try {
+        // First save the config temporarily
+        const data = {
+          service,
+          secureConnection: secure,
+          user: username,
+          pass: password,
+          bulk: 'false'
+        };
+
+        await fetch(`${API_LEGACY}/config`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+
+        // Then verify it
         const response = await fetch(`${API_LEGACY}/smtp/verify`, {
           method: 'POST'
         });
@@ -2926,33 +2994,67 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
           document.getElementById('singleSmtpTestResult').innerHTML = '<span style="color: var(--danger-color);">✗ Verification failed</span>';
         }
       } catch (error) {
-        document.getElementById('singleSmtpTestResult').innerHTML = '<span style="color: var(--danger-color);">✗ Error</span>';
+        document.getElementById('singleSmtpTestResult').innerHTML = '<span style="color: var(--danger-color);">✗ Error: ' + error.message + '</span>';
       }
     }
 
     async function healthSingleSMTP() {
-      document.getElementById('singleSmtpHealthResult').textContent = 'Checking...';
+      // Get current form values (not saved config)
+      const service = document.getElementById('singleSmtpService').value;
+      const secure = document.getElementById('singleSmtpSecure').checked;
+      const username = document.getElementById('singleSmtpUsername').value.trim();
+      const password = document.getElementById('singleSmtpPassword').value.trim();
+
+      // Validate before checking health
+      if (!service) {
+        document.getElementById('singleSmtpHealthResult').innerHTML = '<div class="alert alert-warning">⚠ Please select an SMTP service first</div>';
+        return;
+      }
+
+      if (!username || !password) {
+        document.getElementById('singleSmtpHealthResult').innerHTML = '<div class="alert alert-warning">⚠ Please enter username and password first</div>';
+        return;
+      }
+
+      document.getElementById('singleSmtpHealthResult').textContent = 'Checking domain health...';
+
       try {
+        // First save the config temporarily
+        const data = {
+          service,
+          secureConnection: secure,
+          user: username,
+          pass: password,
+          bulk: 'false'
+        };
+
+        await fetch(`${API_LEGACY}/config`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+
+        // Then check health
         const response = await fetch(`${API_LEGACY}/smtp/health`, {
           method: 'POST'
         });
-        const data = await response.json();
+        const healthData = await response.json();
 
-        if (data.ok) {
-          const mx = data.hasMX ? 'Y' : 'N';
-          const spf = data.hasSPF ? 'Y' : 'N';
-          const dmarc = data.hasDMARC ? 'Y' : 'N';
+        if (healthData.ok) {
+          const mx = healthData.hasMX ? 'Y' : 'N';
+          const spf = healthData.hasSPF ? 'Y' : 'N';
+          const dmarc = healthData.hasDMARC ? 'Y' : 'N';
           document.getElementById('singleSmtpHealthResult').innerHTML = `
             <div class="alert alert-info">
-              <strong>Domain Health for ${data.domain}:</strong><br>
+              <strong>Domain Health for ${healthData.domain}:</strong><br>
               MX: <strong>${mx}</strong> | SPF: <strong>${spf}</strong> | DMARC: <strong>${dmarc}</strong>
             </div>
           `;
         } else {
-          document.getElementById('singleSmtpHealthResult').innerHTML = `<div class="alert alert-warning">${data.message}</div>`;
+          document.getElementById('singleSmtpHealthResult').innerHTML = `<div class="alert alert-warning">${healthData.message}</div>`;
         }
       } catch (error) {
-        document.getElementById('singleSmtpHealthResult').innerHTML = '<div class="alert alert-danger">Health check failed</div>';
+        document.getElementById('singleSmtpHealthResult').innerHTML = '<div class="alert alert-danger">Health check failed: ' + error.message + '</div>';
       }
     }
 
