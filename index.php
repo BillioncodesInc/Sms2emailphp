@@ -3436,35 +3436,57 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
 
     // Validate IP:port format
     function isValidProxy(proxy) {
-      // Updated to accept both IP addresses and hostnames/domains
-      // Format: (ip|hostname):port
-      // IP: xxx.xxx.xxx.xxx:port
-      // Hostname: domain.com:port or proxy-server:port
+      // Supports 3 formats:
+      // 1. ip:port or hostname:port
+      // 2. ip:port:user:pass
+      // 3. user:pass@ip:port (handled elsewhere)
 
       if (!proxy || !proxy.includes(':')) {
         return false;
       }
 
       const parts = proxy.split(':');
-      if (parts.length !== 2) {
-        return false;
-      }
 
-      const [host, port] = parts;
-
-      // Validate port (1-65535)
-      const portNum = parseInt(port);
-      if (isNaN(portNum) || portNum < 1 || portNum > 65535) {
-        return false;
-      }
-
-      // Validate host (IP or domain/hostname)
       // IP address regex
       const ipRegex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
       // Hostname/domain regex (alphanumeric, hyphens, dots)
       const hostnameRegex = /^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*$/;
 
-      return ipRegex.test(host) || hostnameRegex.test(host);
+      if (parts.length === 2) {
+        // Format: host:port
+        const [host, port] = parts;
+
+        // Validate port (1-65535)
+        const portNum = parseInt(port);
+        if (isNaN(portNum) || portNum < 1 || portNum > 65535) {
+          return false;
+        }
+
+        return ipRegex.test(host) || hostnameRegex.test(host);
+      } else if (parts.length === 4) {
+        // Format: ip:port:user:pass
+        const [host, port, username, password] = parts;
+
+        // Validate port (1-65535)
+        const portNum = parseInt(port);
+        if (isNaN(portNum) || portNum < 1 || portNum > 65535) {
+          return false;
+        }
+
+        // Validate host (must be IP or hostname)
+        if (!ipRegex.test(host) && !hostnameRegex.test(host)) {
+          return false;
+        }
+
+        // Validate credentials are not empty
+        if (!username || !password) {
+          return false;
+        }
+
+        return true;
+      }
+
+      return false;
     }
 
     // Validate proxy format with detailed errors
