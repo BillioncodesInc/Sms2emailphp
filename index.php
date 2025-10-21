@@ -7453,7 +7453,7 @@ Username: ${detectedConfig.auth.username}`;
         document.getElementById('debounceStartBtn').innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
 
         // Start processing
-        const response = await fetch(`${API_BASE}/enhanced/debounce/process`, {
+        const response = await fetch(`${API_BASE}/debounce/process`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ emailText, concurrency: 10 })
@@ -7559,7 +7559,7 @@ Username: ${detectedConfig.auth.username}`;
 
       // Fetch final results
       try {
-        const response = await fetch(`${API_BASE}/enhanced/debounce/results/${debounceSessionId}`);
+        const response = await fetch(`${API_BASE}/debounce/results/${debounceSessionId}`);
         const data = await response.json();
 
         if (data.success) {
@@ -7624,7 +7624,7 @@ Username: ${detectedConfig.auth.username}`;
         return;
       }
 
-      const downloadUrl = `${API_BASE}/enhanced/debounce/download/${debounceSessionId}?type=${type}`;
+      const downloadUrl = `${API_BASE}/debounce/download/${debounceSessionId}?type=${type}`;
       window.open(downloadUrl, '_blank');
     }
 
