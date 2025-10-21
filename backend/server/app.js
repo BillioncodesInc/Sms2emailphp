@@ -92,18 +92,33 @@ function proxy(req, res) {
     const existingConfig = proxyStorage.loadConfig();
     const existingProxies = existingConfig ? existingConfig.proxies : [];
 
-    // Parse new proxies
+    // Parse new proxies - supports multiple formats:
+    // 1. user:pass@ip:port
+    // 2. ip:port:user:pass
+    // 3. ip:port (no auth)
     const newProxies = proxies.map(p => {
       if(p.includes('@')){
+        // Format: user:pass@ip:port
         const [auth, prox] = p.split('@');
         const [username, password] = auth.split(':');
         const [host, port] = prox.split(':');
         return { host, port, username, password };
       } else {
-        const [host, port] = p.split(':');
-        return { host, port };
+        const parts = p.split(':');
+        if (parts.length === 4) {
+          // Format: ip:port:user:pass
+          const [host, port, username, password] = parts;
+          return { host, port, username, password };
+        } else if (parts.length === 2) {
+          // Format: ip:port (no auth)
+          const [host, port] = parts;
+          return { host, port };
+        } else {
+          console.warn(`⚠️  Invalid proxy format: ${p}`);
+          return null;
+        }
       }
-    });
+    }).filter(p => p !== null);
 
     // Append new proxies to existing ones
     const allProxies = [...existingProxies, ...newProxies];
