@@ -61,7 +61,7 @@ router.post('/parse', async (req, res) => {
  */
 router.post('/process', async (req, res) => {
   try {
-    const { emailText, concurrency = 10 } = req.body;
+    const { emailText, concurrency = 50 } = req.body;
 
     if (!emailText) {
       return res.status(400).json({
@@ -87,7 +87,17 @@ router.post('/process', async (req, res) => {
       status: 'processing',
       createdAt: Date.now(),
       emails: emails,
-      results: null,
+      results: {
+        safe: [],
+        dangerous: [],
+        stats: {
+          total: emails.length,
+          processed: 0,
+          safe: 0,
+          dangerous: 0,
+          filterRate: 0
+        }
+      },
       error: null
     };
 
@@ -243,12 +253,20 @@ async function processEmailsAsync(sessionId, emails, filter, concurrency) {
     const results = await filter.processEmailList(emails, {
       concurrency,
       onProgress: (progress) => {
+        // Update session with real-time progress
+        if (progress.type === 'progress' && session.results) {
+          session.results.stats.processed = progress.processed;
+          session.results.stats.safe = progress.safe;
+          session.results.stats.dangerous = progress.dangerous;
+          session.results.stats.filterRate = progress.filterRate;
+        }
+
         // Send WebSocket update
         broadcastProgress(sessionId, progress);
       }
     });
 
-    // Update session
+    // Update session with final results
     session.status = 'completed';
     session.results = results;
 

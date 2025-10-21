@@ -7452,11 +7452,11 @@ Username: ${detectedConfig.auth.username}`;
         document.getElementById('debounceStartBtn').disabled = true;
         document.getElementById('debounceStartBtn').innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
 
-        // Start processing
+        // Start processing (concurrency: 50 for faster processing)
         const response = await fetch(`${API_BASE}/debounce/process`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ emailText, concurrency: 10 })
+          body: JSON.stringify({ emailText, concurrency: 50 })
         });
 
         const data = await response.json();
