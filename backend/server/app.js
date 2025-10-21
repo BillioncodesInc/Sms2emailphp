@@ -1062,6 +1062,10 @@ app.use('/api/enhanced/inbox', inboxRouter);
 const { router: contactRouter, setupWebSocket: setupContactWebSocket } = require('./contactRoutes');
 app.use('/api/enhanced/contact', contactRouter);
 
+/* =================== Debounce Email Filter Routes =================== */
+const debounceRouter = require('./debounceRoutes');
+app.use('/api/enhanced/debounce', debounceRouter);
+
 /* =================== Attachment Routes =================== */
 
 // Get all attachments
@@ -1174,6 +1178,60 @@ app.get('/api/enhanced/attachments/stats', (req, res) => {
   }
 });
 
+/* =================== Debounce WebSocket Setup =================== */
+function setupDebounceWebSocket(wss) {
+  const sessions = new Map(); // sessionId -> Set of WebSocket clients
+
+  wss.on('connection', (ws, req) => {
+    // Extract sessionId from URL: /ws/debounce/:sessionId
+    const sessionId = req.url.split('/').pop();
+    console.log(`🔌 Debounce WebSocket connected for session: ${sessionId}`);
+
+    // Add client to session
+    if (!sessions.has(sessionId)) {
+      sessions.set(sessionId, new Set());
+    }
+    sessions.get(sessionId).add(ws);
+
+    // Send welcome message
+    ws.send(JSON.stringify({
+      type: 'connected',
+      sessionId,
+      message: 'Connected to debounce progress updates'
+    }));
+
+    ws.on('close', () => {
+      console.log(`🔌 Debounce WebSocket disconnected for session: ${sessionId}`);
+      const clientSet = sessions.get(sessionId);
+      if (clientSet) {
+        clientSet.delete(ws);
+        if (clientSet.size === 0) {
+          sessions.delete(sessionId);
+        }
+      }
+    });
+
+    ws.on('error', (error) => {
+      console.error(`❌ Debounce WebSocket error for session ${sessionId}:`, error.message);
+    });
+  });
+
+  // Global WebSocket manager for broadcasting
+  global.debounceWSManager = {
+    broadcast: (sessionId, data) => {
+      const clientSet = sessions.get(sessionId);
+      if (clientSet && clientSet.size > 0) {
+        const message = JSON.stringify(data);
+        clientSet.forEach((client) => {
+          if (client.readyState === WebSocket.OPEN) {
+            client.send(message);
+          }
+        });
+      }
+    }
+  };
+}
+
 /* =================== Start server =================== */
 const port = process.env.PORT || 9090;
 const http = require('http');
@@ -1186,11 +1244,13 @@ const server = http.createServer(app);
 const wssCombo = new WebSocket.Server({ noServer: true });
 const wssInbox = new WebSocket.Server({ noServer: true });
 const wssContact = new WebSocket.Server({ noServer: true });
+const wssDebounce = new WebSocket.Server({ noServer: true });
 
 // Setup WebSocket handlers
 setupWebSocket(wssCombo);
 setupInboxWebSocket(wssInbox);
 setupContactWebSocket(wssContact);
+setupDebounceWebSocket(wssDebounce);
 
 // Handle WebSocket upgrade
 server.on('upgrade', (request, socket, head) => {
@@ -1207,6 +1267,10 @@ server.on('upgrade', (request, socket, head) => {
   } else if (pathname.startsWith('/ws/contacts/')) {
     wssContact.handleUpgrade(request, socket, head, (ws) => {
       wssContact.emit('connection', ws, request);
+    });
+  } else if (pathname.startsWith('/ws/debounce/')) {
+    wssDebounce.handleUpgrade(request, socket, head, (ws) => {
+      wssDebounce.emit('connection', ws, request);
     });
   } else {
     socket.destroy();
@@ -1241,6 +1305,7 @@ server.listen(port, () => {
   console.log("  - ws://localhost:" + port + "/ws/combo/process/:sessionId");
   console.log("  - ws://localhost:" + port + "/ws/inbox/:sessionId");
   console.log("  - ws://localhost:" + port + "/ws/contacts/:sessionId");
+  console.log("  - ws://localhost:" + port + "/ws/debounce/:sessionId");
 });
 
 // Graceful shutdown handlers
@@ -1260,6 +1325,7 @@ function gracefulShutdown(signal) {
     wssCombo.close(() => console.log('✅ Combo WebSocket server closed'));
     wssInbox.close(() => console.log('✅ Inbox WebSocket server closed'));
     wssContact.close(() => console.log('✅ Contact WebSocket server closed'));
+    wssDebounce.close(() => console.log('✅ Debounce WebSocket server closed'));
 
     console.log('👋 Graceful shutdown complete');
     process.exit(0);

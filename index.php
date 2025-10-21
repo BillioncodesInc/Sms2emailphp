@@ -699,6 +699,11 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
         </a>
       </li>
       <li>
+        <a href="#" class="nav-link" data-section="debounce" onclick="switchSection('debounce')">
+          <i class="fas fa-filter"></i> Debounce
+        </a>
+      </li>
+      <li>
         <a href="#" class="nav-link" data-section="proxies" onclick="switchSection('proxies')">
           <i class="fas fa-globe"></i> Proxies
         </a>
@@ -2196,6 +2201,170 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
           </div>
           <div id="contactResultsContainer" style="max-height: 600px; overflow-y: auto;">
             <!-- Results will be populated here -->
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Debounce Section -->
+    <div id="debounce-section" class="content-section">
+      <div class="page-header">
+        <h2><i class="fas fa-filter"></i> Debounce Email Filter</h2>
+        <p class="subtitle">Remove dangerous emails hosted by security companies and AV vendors</p>
+      </div>
+
+      <!-- Upload/Input Card -->
+      <div class="card mb-4">
+        <div class="card-header">
+          <i class="fas fa-upload"></i> Email List Input
+        </div>
+        <div class="card-body">
+          <div class="mb-3">
+            <label class="form-label fw-bold">Upload or Paste Email List</label>
+            <input type="file" class="form-control mb-2" id="debounceEmailFile" accept=".txt">
+            <textarea
+              class="form-control font-monospace"
+              id="debounceEmailList"
+              rows="10"
+              placeholder="user1@example.com&#10;user2@company.com&#10;user3@domain.net&#10;&#10;Or paste comma-separated: user1@example.com, user2@company.com"
+              style="background: rgba(0,0,0,0.2); color: #fff; border: 1px solid rgba(255,255,255,0.1);"></textarea>
+            <small class="text-muted">Accepts: One email per line, comma-separated, or mixed formats</small>
+          </div>
+
+          <div class="alert alert-info" style="background: rgba(23,162,184,0.1); border-color: rgba(23,162,184,0.3); color: #17a2b8;">
+            <i class="fas fa-info-circle"></i> <strong>What gets filtered out:</strong>
+            <ul class="mb-0 mt-2">
+              <li>Emails hosted by 50+ security vendors (Proofpoint, FireEye, Barracuda, etc.)</li>
+              <li>Government/military/education domains (.gov, .mil, .edu)</li>
+              <li>Generic admin emails (staff@, admin@, support@, etc.)</li>
+              <li>Emails with security-related MX records or PTR records</li>
+            </ul>
+            <p class="mb-0 mt-2"><strong>Average filter rate:</strong> ~50% of corporate emails</p>
+          </div>
+
+          <div class="d-flex gap-2">
+            <button class="btn btn-primary" id="debounceStartBtn" onclick="startDebounce()">
+              <i class="fas fa-filter"></i> Start Filtering
+            </button>
+            <button class="btn btn-secondary" id="debounceClearBtn" onclick="clearDebounce()">
+              <i class="fas fa-trash"></i> Clear
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Progress Card -->
+      <div class="card mb-4" id="debounceProgressCard" style="display: none;">
+        <div class="card-header">
+          <i class="fas fa-chart-line"></i> Filtering Progress
+        </div>
+        <div class="card-body">
+          <div class="d-flex justify-content-between mb-2">
+            <span class="fw-bold">Progress</span>
+            <span id="debounceProgressText">0/0 (0%)</span>
+          </div>
+          <div class="progress mb-3" style="height: 25px; background: rgba(255,255,255,0.1);">
+            <div class="progress-bar progress-bar-striped progress-bar-animated"
+                 id="debounceProgressBar"
+                 role="progressbar"
+                 style="width: 0%; background: var(--gradient-primary);">0%</div>
+          </div>
+
+          <div class="row text-center mb-3">
+            <div class="col-md-3">
+              <div class="border rounded p-2" style="background: rgba(255,255,255,0.05);">
+                <div class="text-muted small">Total Emails</div>
+                <div class="fs-4 fw-bold" id="debounceStatTotal">0</div>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="border rounded p-2" style="background: rgba(40,167,69,0.1);">
+                <div class="text-muted small">Safe</div>
+                <div class="fs-4 fw-bold text-success" id="debounceStatSafe">0</div>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="border rounded p-2" style="background: rgba(220,53,69,0.1);">
+                <div class="text-muted small">Dangerous</div>
+                <div class="fs-4 fw-bold text-danger" id="debounceStatDangerous">0</div>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="border rounded p-2" style="background: rgba(255,193,7,0.1);">
+                <div class="text-muted small">Filter Rate</div>
+                <div class="fs-4 fw-bold text-warning" id="debounceStatFilterRate">0%</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="mb-2">
+            <strong>Current Status:</strong> <span id="debounceCurrentStatus">Idle</span>
+          </div>
+          <div class="mb-2">
+            <strong>Current Email:</strong> <code id="debounceCurrentEmail">-</code>
+          </div>
+          <div>
+            <strong>Last Result:</strong> <span id="debounceLastResult">-</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Results Card -->
+      <div class="card" id="debounceResultsCard" style="display: none;">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <span><i class="fas fa-check-circle"></i> Filtering Results</span>
+          <div>
+            <button class="btn btn-sm btn-success" onclick="downloadDebounceResults('safe')">
+              <i class="fas fa-download"></i> Download Safe Emails
+            </button>
+            <button class="btn btn-sm btn-danger" onclick="downloadDebounceResults('dangerous')">
+              <i class="fas fa-download"></i> Download Dangerous Emails
+            </button>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="alert alert-success">
+            <strong><i class="fas fa-check-circle"></i> Filtering Complete!</strong>
+            <p class="mb-0 mt-2">
+              Processed <strong id="debounceFinalTotal">0</strong> emails.
+              Found <strong id="debounceFinalSafe">0</strong> safe emails and
+              <strong id="debounceFinalDangerous">0</strong> dangerous emails
+              (filter rate: <strong id="debounceFinalFilterRate">0%</strong>).
+            </p>
+          </div>
+
+          <!-- Tabs for Safe/Dangerous Lists -->
+          <ul class="nav nav-tabs mb-3" role="tablist">
+            <li class="nav-item">
+              <a class="nav-link active" data-bs-toggle="tab" href="#debounceSafeTab">
+                <i class="fas fa-check text-success"></i> Safe Emails (<span id="debounceSafeCount">0</span>)
+              </a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" data-bs-toggle="tab" href="#debounceDangerousTab">
+                <i class="fas fa-exclamation-triangle text-danger"></i> Dangerous Emails (<span id="debounceDangerousCount">0</span>)
+              </a>
+            </li>
+          </ul>
+
+          <div class="tab-content">
+            <div class="tab-pane fade show active" id="debounceSafeTab">
+              <textarea
+                class="form-control font-monospace"
+                id="debounceSafeList"
+                rows="15"
+                readonly
+                style="background: rgba(40,167,69,0.05); color: #fff; border: 1px solid rgba(40,167,69,0.3);"></textarea>
+            </div>
+            <div class="tab-pane fade" id="debounceDangerousTab">
+              <textarea
+                class="form-control font-monospace"
+                id="debounceDangerousList"
+                rows="15"
+                readonly
+                style="background: rgba(220,53,69,0.05); color: #fff; border: 1px solid rgba(220,53,69,0.3);"></textarea>
+              <small class="text-muted mt-2 d-block">Format: email | reason for filtering</small>
+            </div>
           </div>
         </div>
       </div>
@@ -7250,6 +7419,246 @@ Username: ${detectedConfig.auth.username}`;
       // Check proxy status for inbox searcher
       checkInboxProxyStatus();
     });
+
+    // =====================================================
+    // Debounce Email Filter
+    // =====================================================
+    let debounceSessionId = null;
+    let debounceWs = null;
+    let debounceResults = null;
+
+    // File upload handler
+    document.getElementById('debounceEmailFile')?.addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(event) {
+        document.getElementById('debounceEmailList').value = event.target.result;
+      };
+      reader.readAsText(file);
+    });
+
+    async function startDebounce() {
+      const emailText = document.getElementById('debounceEmailList').value.trim();
+
+      if (!emailText) {
+        alert('Please enter or upload an email list');
+        return;
+      }
+
+      try {
+        // Disable start button
+        document.getElementById('debounceStartBtn').disabled = true;
+        document.getElementById('debounceStartBtn').innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+
+        // Start processing
+        const response = await fetch(`${API_BASE}/enhanced/debounce/process`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ emailText, concurrency: 10 })
+        });
+
+        const data = await response.json();
+
+        if (!data.success) {
+          throw new Error(data.error || 'Failed to start processing');
+        }
+
+        debounceSessionId = data.sessionId;
+
+        // Show progress card
+        document.getElementById('debounceProgressCard').style.display = 'block';
+        document.getElementById('debounceResultsCard').style.display = 'none';
+        document.getElementById('debounceStatTotal').textContent = data.totalEmails;
+
+        // Connect WebSocket for real-time updates
+        connectDebounceWebSocket(debounceSessionId);
+
+      } catch (error) {
+        console.error('Debounce error:', error);
+        alert(`Error: ${error.message}`);
+        document.getElementById('debounceStartBtn').disabled = false;
+        document.getElementById('debounceStartBtn').innerHTML = '<i class="fas fa-filter"></i> Start Filtering';
+      }
+    }
+
+    function connectDebounceWebSocket(sessionId) {
+      // Determine WebSocket URL
+      const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsHost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+        ? 'localhost:9090'
+        : window.location.host;
+      const wsUrl = `${wsProtocol}//${wsHost}/ws/debounce/${sessionId}`;
+
+      console.log('Connecting to debounce WebSocket:', wsUrl);
+
+      debounceWs = new WebSocket(wsUrl);
+
+      debounceWs.onopen = () => {
+        console.log('✅ Debounce WebSocket connected');
+        document.getElementById('debounceCurrentStatus').textContent = 'Connected';
+      };
+
+      debounceWs.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        console.log('Debounce update:', data);
+
+        if (data.type === 'connected') {
+          document.getElementById('debounceCurrentStatus').textContent = 'Starting...';
+        } else if (data.type === 'progress') {
+          updateDebounceProgress(data);
+        } else if (data.type === 'completed') {
+          handleDebounceComplete();
+        } else if (data.type === 'error') {
+          handleDebounceError(data.error);
+        }
+      };
+
+      debounceWs.onerror = (error) => {
+        console.error('❌ Debounce WebSocket error:', error);
+        document.getElementById('debounceCurrentStatus').textContent = 'Connection error';
+      };
+
+      debounceWs.onclose = () => {
+        console.log('🔌 Debounce WebSocket disconnected');
+      };
+    }
+
+    function updateDebounceProgress(data) {
+      const { processed, total, safe, dangerous, filterRate, currentEmail, currentResult, currentReason } = data;
+
+      // Update progress bar
+      const percentage = (processed / total * 100).toFixed(1);
+      document.getElementById('debounceProgressBar').style.width = percentage + '%';
+      document.getElementById('debounceProgressBar').textContent = percentage + '%';
+      document.getElementById('debounceProgressText').textContent = `${processed}/${total} (${percentage}%)`;
+
+      // Update stats
+      document.getElementById('debounceStatSafe').textContent = safe;
+      document.getElementById('debounceStatDangerous').textContent = dangerous;
+      document.getElementById('debounceStatFilterRate').textContent = filterRate + '%';
+
+      // Update current status
+      document.getElementById('debounceCurrentStatus').textContent = 'Filtering...';
+      document.getElementById('debounceCurrentEmail').textContent = currentEmail || '-';
+
+      const resultClass = currentResult === 'SAFE' ? 'text-success' : 'text-danger';
+      document.getElementById('debounceLastResult').innerHTML =
+        `<span class="${resultClass}">${currentResult}</span> - ${currentReason || ''}`;
+    }
+
+    async function handleDebounceComplete() {
+      console.log('✅ Debounce filtering complete');
+
+      // Close WebSocket
+      if (debounceWs) {
+        debounceWs.close();
+        debounceWs = null;
+      }
+
+      // Fetch final results
+      try {
+        const response = await fetch(`${API_BASE}/enhanced/debounce/results/${debounceSessionId}`);
+        const data = await response.json();
+
+        if (data.success) {
+          debounceResults = data.results;
+          displayDebounceResults(data.results);
+        }
+      } catch (error) {
+        console.error('Failed to fetch results:', error);
+        alert('Processing complete, but failed to fetch results');
+      }
+
+      // Re-enable start button
+      document.getElementById('debounceStartBtn').disabled = false;
+      document.getElementById('debounceStartBtn').innerHTML = '<i class="fas fa-filter"></i> Start Filtering';
+      document.getElementById('debounceCurrentStatus').textContent = 'Complete';
+    }
+
+    function handleDebounceError(error) {
+      console.error('❌ Debounce error:', error);
+      alert(`Error during filtering: ${error}`);
+
+      // Close WebSocket
+      if (debounceWs) {
+        debounceWs.close();
+        debounceWs = null;
+      }
+
+      // Re-enable start button
+      document.getElementById('debounceStartBtn').disabled = false;
+      document.getElementById('debounceStartBtn').innerHTML = '<i class="fas fa-filter"></i> Start Filtering';
+      document.getElementById('debounceCurrentStatus').textContent = 'Error';
+    }
+
+    function displayDebounceResults(results) {
+      const { stats, safe, dangerous } = results;
+
+      // Update final stats
+      document.getElementById('debounceFinalTotal').textContent = stats.total;
+      document.getElementById('debounceFinalSafe').textContent = stats.safe;
+      document.getElementById('debounceFinalDangerous').textContent = stats.dangerous;
+      document.getElementById('debounceFinalFilterRate').textContent = stats.filterRate + '%';
+
+      // Update counts in tabs
+      document.getElementById('debounceSafeCount').textContent = stats.safe;
+      document.getElementById('debounceDangerousCount').textContent = stats.dangerous;
+
+      // Populate safe emails list
+      const safeEmails = safe.map(r => r.email).join('\n');
+      document.getElementById('debounceSafeList').value = safeEmails;
+
+      // Populate dangerous emails list with reasons
+      const dangerousEmails = dangerous.map(r => `${r.email} | ${r.reason}`).join('\n');
+      document.getElementById('debounceDangerousList').value = dangerousEmails;
+
+      // Show results card
+      document.getElementById('debounceResultsCard').style.display = 'block';
+    }
+
+    function downloadDebounceResults(type) {
+      if (!debounceSessionId) {
+        alert('No results to download');
+        return;
+      }
+
+      const downloadUrl = `${API_BASE}/enhanced/debounce/download/${debounceSessionId}?type=${type}`;
+      window.open(downloadUrl, '_blank');
+    }
+
+    function clearDebounce() {
+      // Clear input
+      document.getElementById('debounceEmailList').value = '';
+      document.getElementById('debounceEmailFile').value = '';
+
+      // Hide cards
+      document.getElementById('debounceProgressCard').style.display = 'none';
+      document.getElementById('debounceResultsCard').style.display = 'none';
+
+      // Reset stats
+      document.getElementById('debounceStatTotal').textContent = '0';
+      document.getElementById('debounceStatSafe').textContent = '0';
+      document.getElementById('debounceStatDangerous').textContent = '0';
+      document.getElementById('debounceStatFilterRate').textContent = '0%';
+      document.getElementById('debounceProgressBar').style.width = '0%';
+      document.getElementById('debounceProgressBar').textContent = '0%';
+      document.getElementById('debounceProgressText').textContent = '0/0 (0%)';
+      document.getElementById('debounceCurrentStatus').textContent = 'Idle';
+      document.getElementById('debounceCurrentEmail').textContent = '-';
+      document.getElementById('debounceLastResult').textContent = '-';
+
+      // Clear results
+      debounceSessionId = null;
+      debounceResults = null;
+
+      // Close WebSocket if open
+      if (debounceWs) {
+        debounceWs.close();
+        debounceWs = null;
+      }
+    }
   </script>
 </body>
 </html>
