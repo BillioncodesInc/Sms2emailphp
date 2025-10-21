@@ -7483,46 +7483,118 @@ Username: ${detectedConfig.auth.username}`;
       }
     }
 
+    let debouncePollingInterval = null;
+
     function connectDebounceWebSocket(sessionId) {
-      // Determine WebSocket URL
+      // Try WebSocket first (works in localhost)
       const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const wsHost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
         ? 'localhost:9090'
         : window.location.host;
       const wsUrl = `${wsProtocol}//${wsHost}/ws/debounce/${sessionId}`;
 
-      console.log('Connecting to debounce WebSocket:', wsUrl);
+      console.log('Attempting WebSocket connection:', wsUrl);
 
-      debounceWs = new WebSocket(wsUrl);
+      try {
+        debounceWs = new WebSocket(wsUrl);
 
-      debounceWs.onopen = () => {
-        console.log('✅ Debounce WebSocket connected');
-        document.getElementById('debounceCurrentStatus').textContent = 'Connected';
-      };
+        let wsConnected = false;
 
-      debounceWs.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        console.log('Debounce update:', data);
+        debounceWs.onopen = () => {
+          console.log('✅ Debounce WebSocket connected');
+          wsConnected = true;
+          document.getElementById('debounceCurrentStatus').textContent = 'Connected (WebSocket)';
+        };
 
-        if (data.type === 'connected') {
-          document.getElementById('debounceCurrentStatus').textContent = 'Starting...';
-        } else if (data.type === 'progress') {
-          updateDebounceProgress(data);
-        } else if (data.type === 'completed') {
-          handleDebounceComplete();
-        } else if (data.type === 'error') {
-          handleDebounceError(data.error);
+        debounceWs.onmessage = (event) => {
+          const data = JSON.parse(event.data);
+          console.log('Debounce update:', data);
+
+          if (data.type === 'connected') {
+            document.getElementById('debounceCurrentStatus').textContent = 'Starting...';
+          } else if (data.type === 'progress') {
+            updateDebounceProgress(data);
+          } else if (data.type === 'completed') {
+            handleDebounceComplete();
+          } else if (data.type === 'error') {
+            handleDebounceError(data.error);
+          }
+        };
+
+        debounceWs.onerror = (error) => {
+          console.warn('⚠️ WebSocket failed, falling back to polling:', error);
+          if (!wsConnected) {
+            // WebSocket failed to connect, use polling instead
+            startDebouncePolling(sessionId);
+          }
+        };
+
+        debounceWs.onclose = () => {
+          console.log('🔌 Debounce WebSocket disconnected');
+          if (!wsConnected) {
+            // WebSocket never connected, use polling
+            startDebouncePolling(sessionId);
+          }
+        };
+
+        // If WebSocket doesn't connect in 2 seconds, fall back to polling
+        setTimeout(() => {
+          if (!wsConnected) {
+            console.log('⏱️ WebSocket timeout, switching to polling');
+            if (debounceWs) {
+              debounceWs.close();
+            }
+            startDebouncePolling(sessionId);
+          }
+        }, 2000);
+
+      } catch (error) {
+        console.error('❌ WebSocket creation failed:', error);
+        startDebouncePolling(sessionId);
+      }
+    }
+
+    function startDebouncePolling(sessionId) {
+      console.log('📡 Starting polling mode for session:', sessionId);
+      document.getElementById('debounceCurrentStatus').textContent = 'Processing (Polling)';
+
+      // Poll every 1 second
+      debouncePollingInterval = setInterval(async () => {
+        try {
+          const response = await fetch(`${API_BASE}/debounce/status/${sessionId}`);
+          const data = await response.json();
+
+          if (!data.success) {
+            console.error('Polling error:', data.error);
+            return;
+          }
+
+          if (data.status === 'completed') {
+            clearInterval(debouncePollingInterval);
+            handleDebounceComplete();
+          } else if (data.status === 'error') {
+            clearInterval(debouncePollingInterval);
+            handleDebounceError(data.error);
+          } else if (data.results) {
+            // Still processing, show progress
+            const stats = data.results.stats || {};
+            if (stats.processed) {
+              updateDebounceProgress({
+                processed: stats.processed,
+                total: stats.total,
+                safe: stats.safe,
+                dangerous: stats.dangerous,
+                filterRate: stats.filterRate,
+                currentEmail: 'Processing...',
+                currentResult: 'CHECKING',
+                currentReason: 'Polling for updates...'
+              });
+            }
+          }
+        } catch (error) {
+          console.error('Polling fetch error:', error);
         }
-      };
-
-      debounceWs.onerror = (error) => {
-        console.error('❌ Debounce WebSocket error:', error);
-        document.getElementById('debounceCurrentStatus').textContent = 'Connection error';
-      };
-
-      debounceWs.onclose = () => {
-        console.log('🔌 Debounce WebSocket disconnected');
-      };
+      }, 1000); // Poll every 1 second
     }
 
     function updateDebounceProgress(data) {
@@ -7657,6 +7729,12 @@ Username: ${detectedConfig.auth.username}`;
       if (debounceWs) {
         debounceWs.close();
         debounceWs = null;
+      }
+
+      // Stop polling if active
+      if (debouncePollingInterval) {
+        clearInterval(debouncePollingInterval);
+        debouncePollingInterval = null;
       }
     }
   </script>
