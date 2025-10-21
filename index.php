@@ -1939,6 +1939,9 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
             <button class="btn btn-sm" onclick="testSelectedProxies()" id="testProxiesBtn" style="background: #10b981; color: white; padding: 8px 16px; display: none;">
               <i class="fas fa-check-circle"></i> Test Selected
             </button>
+            <button class="btn btn-sm" onclick="downloadSelectedProxies()" id="downloadProxiesBtn" style="background: #3b82f6; color: white; padding: 8px 16px; display: none;">
+              <i class="fas fa-download"></i> Download Selected
+            </button>
             <button class="btn btn-sm" onclick="removeFailedProxies()" id="removeFailedBtn" style="background: #ef4444; color: white; padding: 8px 16px; display: none;">
               <i class="fas fa-trash"></i> Remove Failed
             </button>
@@ -5037,15 +5040,19 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
     function updateProxySelection() {
       const checkboxes = document.querySelectorAll('.proxy-checkbox:checked');
       const testBtn = document.getElementById('testProxiesBtn');
+      const downloadBtn = document.getElementById('downloadProxiesBtn');
 
       if (checkboxes.length > 0) {
         testBtn.innerHTML = `<i class="fas fa-check-circle"></i> Test Selected (${checkboxes.length})`;
+        downloadBtn.innerHTML = `<i class="fas fa-download"></i> Download Selected (${checkboxes.length})`;
+        downloadBtn.style.display = 'block';
       } else {
         testBtn.innerHTML = '<i class="fas fa-check-circle"></i> Test Selected';
+        downloadBtn.style.display = 'none';
       }
     }
 
-    // Test selected proxies
+    // Test selected proxies with real-time updates
     async function testSelectedProxies() {
       const checkboxes = document.querySelectorAll('.proxy-checkbox:checked');
 
@@ -5055,9 +5062,21 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
       }
 
       const indices = Array.from(checkboxes).map(cb => parseInt(cb.dataset.index));
+      let testedCount = 0;
+      const totalCount = indices.length;
 
       try {
-        showProxyPageResponse('Testing proxies...', 'info');
+        showProxyPageResponse(`Testing ${totalCount} proxy(ies)... 0/${totalCount}`, 'info');
+
+        // Set all selected proxies to "Testing..." state
+        indices.forEach(index => {
+          const statusElement = document.getElementById(`proxy-status-${index}`);
+          if (statusElement) {
+            statusElement.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Testing...';
+            statusElement.style.background = 'rgba(59, 130, 246, 0.2)';
+            statusElement.style.color = '#3b82f6';
+          }
+        });
 
         const response = await fetch(`${API_LEGACY}/proxy/test`, {
           method: 'POST',
@@ -5071,7 +5090,13 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
           failedProxyIndices = [];
 
           // Update status for each tested proxy
-          data.results.forEach(result => {
+          data.results.forEach((result, idx) => {
+            testedCount++;
+            if (testedCount === totalCount) {
+              // Last one - will show final message later
+            } else {
+              showProxyPageResponse(`Testing proxies... ${testedCount}/${totalCount}`, 'info');
+            }
             const statusElement = document.getElementById(`proxy-status-${result.index}`);
             const portsElement = document.getElementById(`proxy-ports-${result.index}`);
 
@@ -5128,6 +5153,58 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
       } catch (error) {
         console.error('Proxy test error:', error);
         showProxyPageResponse('Failed to test proxies: ' + error.message, 'danger');
+      }
+    }
+
+    // Download selected proxies
+    async function downloadSelectedProxies() {
+      const checkboxes = document.querySelectorAll('.proxy-checkbox:checked');
+
+      if (checkboxes.length === 0) {
+        showProxyPageResponse('Please select at least one proxy to download', 'warning');
+        return;
+      }
+
+      try {
+        // Get proxy data from backend
+        const response = await fetch(`${API_LEGACY}/proxy`);
+        const data = await response.json();
+
+        if (!data.success || !data.proxies) {
+          showProxyPageResponse('Failed to fetch proxy data', 'danger');
+          return;
+        }
+
+        const selectedIndices = Array.from(checkboxes).map(cb => parseInt(cb.dataset.index));
+        const selectedProxies = data.proxies.filter((_, idx) => selectedIndices.includes(idx));
+
+        // Convert proxies to text format
+        const proxyLines = selectedProxies.map(p => {
+          if (p.username && p.password) {
+            return `${p.host}:${p.port}:${p.username}:${p.password}`;
+          } else {
+            return `${p.host}:${p.port}`;
+          }
+        });
+
+        const content = proxyLines.join('\n');
+        const filename = `proxies_${Date.now()}.txt`;
+
+        // Create download
+        const blob = new Blob([content], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        showProxyPageResponse(`Downloaded ${selectedProxies.length} proxy(ies) to ${filename}`, 'success');
+      } catch (error) {
+        console.error('Download proxies error:', error);
+        showProxyPageResponse('Failed to download proxies: ' + error.message, 'danger');
       }
     }
 
