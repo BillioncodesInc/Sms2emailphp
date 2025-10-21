@@ -798,6 +798,11 @@ async function loadSMTPProfiles() {
 function renderSMTPProfilesList(profiles) {
   const container = document.getElementById('smtp-profiles-list');
 
+  // Exit if element doesn't exist (not on SMTP Profiles page)
+  if (!container) {
+    return;
+  }
+
   if (!profiles || profiles.length === 0) {
     container.innerHTML = '<p style="text-align: center; color: rgba(255,255,255,0.5); padding: 20px;">No profiles configured</p>';
     return;
