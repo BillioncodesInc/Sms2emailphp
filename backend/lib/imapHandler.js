@@ -13,22 +13,105 @@ const dns = require('dns').promises;
 
 class ImapHandler {
   constructor() {
-    // IMAP server configurations for common providers
+    // IMAP server configurations for ALL major providers
+    // Matches smtpValidatorAdvanced.js comprehensive provider support
     this.imapConfigs = {
+      // Google
       'gmail.com': { host: 'imap.gmail.com', port: 993, tls: true },
       'googlemail.com': { host: 'imap.gmail.com', port: 993, tls: true },
+
+      // Yahoo
       'yahoo.com': { host: 'imap.mail.yahoo.com', port: 993, tls: true },
+      'ymail.com': { host: 'imap.mail.yahoo.com', port: 993, tls: true },
+      'rocketmail.com': { host: 'imap.mail.yahoo.com', port: 993, tls: true },
+      'yahoo.co.uk': { host: 'imap.mail.yahoo.com', port: 993, tls: true },
+      'yahoo.fr': { host: 'imap.mail.yahoo.com', port: 993, tls: true },
+      'yahoo.de': { host: 'imap.mail.yahoo.com', port: 993, tls: true },
+
+      // Microsoft/Outlook/Hotmail/Live
       'outlook.com': { host: 'outlook.office365.com', port: 993, tls: true },
       'hotmail.com': { host: 'outlook.office365.com', port: 993, tls: true },
       'live.com': { host: 'outlook.office365.com', port: 993, tls: true },
+      'msn.com': { host: 'outlook.office365.com', port: 993, tls: true },
+      'outlook.co.uk': { host: 'outlook.office365.com', port: 993, tls: true },
+      'hotmail.co.uk': { host: 'outlook.office365.com', port: 993, tls: true },
+      'live.co.uk': { host: 'outlook.office365.com', port: 993, tls: true },
+
+      // AOL
       'aol.com': { host: 'imap.aol.com', port: 993, tls: true },
+      'aol.co.uk': { host: 'imap.aol.com', port: 993, tls: true },
+      'aim.com': { host: 'imap.aol.com', port: 993, tls: true },
+
+      // AT&T / SBC / Bellsouth
+      'att.net': { host: 'imap.mail.att.net', port: 993, tls: true },
+      'sbcglobal.net': { host: 'imap.mail.att.net', port: 993, tls: true },
+      'bellsouth.net': { host: 'imap.mail.att.net', port: 993, tls: true },
+
+      // Verizon
+      'verizon.net': { host: 'incoming.verizon.net', port: 993, tls: true },
+
+      // iCloud / Apple
       'icloud.com': { host: 'imap.mail.me.com', port: 993, tls: true },
       'me.com': { host: 'imap.mail.me.com', port: 993, tls: true },
-      'mail.ru': { host: 'imap.mail.ru', port: 993, tls: true },
-      'yandex.com': { host: 'imap.yandex.com', port: 993, tls: true },
+      'mac.com': { host: 'imap.mail.me.com', port: 993, tls: true },
+
+      // Zoho
       'zoho.com': { host: 'imap.zoho.com', port: 993, tls: true },
-      'protonmail.com': { host: 'imap.protonmail.com', port: 993, tls: true }
+      'zoho.eu': { host: 'imap.zoho.eu', port: 993, tls: true },
+      'zoho.in': { host: 'imap.zoho.in', port: 993, tls: true },
+
+      // ProtonMail
+      'protonmail.com': { host: '127.0.0.1', port: 1143, tls: false }, // ProtonMail Bridge required
+      'proton.me': { host: '127.0.0.1', port: 1143, tls: false }, // ProtonMail Bridge required
+
+      // GMX
+      'gmx.com': { host: 'imap.gmx.com', port: 993, tls: true },
+      'gmx.net': { host: 'imap.gmx.net', port: 993, tls: true },
+      'gmx.de': { host: 'imap.gmx.de', port: 993, tls: true },
+
+      // Mail.com
+      'mail.com': { host: 'imap.mail.com', port: 993, tls: true },
+
+      // Yandex
+      'yandex.com': { host: 'imap.yandex.com', port: 993, tls: true },
+      'yandex.ru': { host: 'imap.yandex.ru', port: 993, tls: true },
+
+      // Mail.ru
+      'mail.ru': { host: 'imap.mail.ru', port: 993, tls: true },
+
+      // Fastmail
+      'fastmail.com': { host: 'imap.fastmail.com', port: 993, tls: true },
+      'fastmail.fm': { host: 'imap.fastmail.com', port: 993, tls: true },
+
+      // Tutanota (requires desktop client, no direct IMAP)
+      'tutanota.com': { host: null, port: null, tls: null, requiresClient: true },
+      'tutanota.de': { host: null, port: null, tls: null, requiresClient: true },
+
+      // QQ Mail
+      'qq.com': { host: 'imap.qq.com', port: 993, tls: true },
+
+      // Chinese providers
+      '163.com': { host: 'imap.163.com', port: 993, tls: true },
+      '126.com': { host: 'imap.126.com', port: 993, tls: true },
+
+      // ISPs
+      'earthlink.net': { host: 'imap.earthlink.net', port: 993, tls: true },
+      'juno.com': { host: 'imap.juno.com', port: 993, tls: true },
+      'netzero.net': { host: 'imap.netzero.net', port: 993, tls: true },
+      'comcast.net': { host: 'imap.comcast.net', port: 993, tls: true },
+      'compuserve.com': { host: 'imap.cs.com', port: 993, tls: true },
+      'netscape.net': { host: 'imap.netscape.com', port: 993, tls: true }
     };
+
+    // Custom DNS servers for resolution (matching smtpValidatorAdvanced.js)
+    this.DNS_SERVERS = [
+      '1.1.1.1',        // Cloudflare
+      '8.8.8.8',        // Google Primary
+      '8.8.4.4',        // Google Secondary
+      '9.9.9.9',        // Quad9
+      '208.67.222.222', // OpenDNS
+      '208.67.220.220'  // OpenDNS Secondary
+    ];
   }
 
   /**
@@ -60,13 +143,21 @@ class ImapHandler {
   /**
    * Get IMAP configuration for a domain
    * Similar to get_smtp_config() in Python script
+   * Enhanced with comprehensive provider support
    */
   async getImapConfig(domain) {
     domain = domain.toLowerCase();
 
     // Check if we have a pre-configured IMAP server
     if (this.imapConfigs[domain]) {
-      return this.imapConfigs[domain];
+      const config = this.imapConfigs[domain];
+
+      // Check for providers that require special client setup
+      if (config.requiresClient) {
+        throw new Error(`${domain} requires desktop client for IMAP access`);
+      }
+
+      return config;
     }
 
     // Try common IMAP server patterns
