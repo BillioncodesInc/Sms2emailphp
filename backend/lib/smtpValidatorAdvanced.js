@@ -290,48 +290,161 @@ class SMTPValidatorAdvanced {
         }
       }
 
-      // Send AUTH LOGIN
-      await this.sendSMTPCommand(activeSocket, 'AUTH LOGIN');
-      const authResponse = await this.readSMTPResponse(activeSocket);
-      result.responses.push(authResponse);
+      // Determine which AUTH methods are available
+      const authMethods = this.parseAuthMethods(ehloResponse);
+      let authSuccess = false;
 
-      if (!authResponse.startsWith('334')) {
-        result.error = 'AUTH LOGIN not accepted';
-        return result;
+      // Try AUTH PLAIN first (simpler and works with more providers)
+      if (authMethods.includes('PLAIN')) {
+        try {
+          const plainAuth = await this.tryAuthPlain(activeSocket, user, pass);
+          result.responses.push(...plainAuth.responses);
+          if (plainAuth.success) {
+            authSuccess = true;
+            result.valid = true;
+          }
+        } catch (plainError) {
+          result.responses.push(`AUTH PLAIN failed: ${plainError.message}`);
+        }
       }
 
-      // Send username (base64 encoded)
-      const userB64 = Buffer.from(user).toString('base64');
-      await this.sendSMTPCommand(activeSocket, userB64);
-      const userResponse = await this.readSMTPResponse(activeSocket);
-      result.responses.push(userResponse);
-
-      if (!userResponse.startsWith('334')) {
-        result.error = 'Username rejected';
-        return result;
+      // If PLAIN failed or not available, try AUTH LOGIN
+      if (!authSuccess && authMethods.includes('LOGIN')) {
+        try {
+          const loginAuth = await this.tryAuthLogin(activeSocket, user, pass);
+          result.responses.push(...loginAuth.responses);
+          if (loginAuth.success) {
+            authSuccess = true;
+            result.valid = true;
+          } else {
+            result.error = loginAuth.error;
+          }
+        } catch (loginError) {
+          result.error = loginError.message;
+        }
       }
 
-      // Send password (base64 encoded)
-      const passB64 = Buffer.from(pass).toString('base64');
-      await this.sendSMTPCommand(activeSocket, passB64);
-      const passResponse = await this.readSMTPResponse(activeSocket);
-      result.responses.push(passResponse);
-
-      // Check authentication success (235 = success)
-      if (passResponse.startsWith('235')) {
-        result.valid = true;
-
-        // Send QUIT
-        await this.sendSMTPCommand(activeSocket, 'QUIT');
-
-      } else if (passResponse.startsWith('535')) {
-        result.error = 'Invalid credentials (535)';
+      // If neither worked
+      if (!authSuccess) {
+        if (!result.error) {
+          result.error = 'No supported authentication method available';
+        }
       } else {
-        result.error = `Authentication failed: ${passResponse.substring(0, 100)}`;
+        // Send QUIT on success
+        await this.sendSMTPCommand(activeSocket, 'QUIT');
       }
 
     } catch (error) {
       result.error = error.message;
+    }
+
+    return result;
+  }
+
+  /**
+   * Parse AUTH methods from EHLO response
+   * @param {string} ehloResponse - EHLO response
+   * @returns {Array<string>} Array of supported auth methods
+   */
+  parseAuthMethods(ehloResponse) {
+    const methods = [];
+    const lines = ehloResponse.split('\n');
+
+    for (const line of lines) {
+      // Look for AUTH line: "250-AUTH PLAIN LOGIN" or "250 AUTH PLAIN LOGIN"
+      const authMatch = line.match(/250[\s-]AUTH\s+(.+)/i);
+      if (authMatch) {
+        const authLine = authMatch[1].trim();
+        // Split by space to get individual methods
+        const foundMethods = authLine.split(/\s+/);
+        methods.push(...foundMethods);
+      }
+    }
+
+    return methods.map(m => m.toUpperCase());
+  }
+
+  /**
+   * Try AUTH PLAIN authentication
+   * @param {Socket} socket - Active socket
+   * @param {string} user - Username
+   * @param {string} pass - Password
+   * @returns {Promise<Object>} Auth result
+   */
+  async tryAuthPlain(socket, user, pass) {
+    const result = {
+      success: false,
+      error: null,
+      responses: []
+    };
+
+    // AUTH PLAIN format: base64("\0username\0password")
+    const authString = `\0${user}\0${pass}`;
+    const authB64 = Buffer.from(authString).toString('base64');
+
+    await this.sendSMTPCommand(socket, `AUTH PLAIN ${authB64}`);
+    const response = await this.readSMTPResponse(socket);
+    result.responses.push(response);
+
+    if (response.startsWith('235')) {
+      result.success = true;
+    } else if (response.startsWith('535')) {
+      result.error = 'Invalid credentials (535)';
+    } else {
+      result.error = `AUTH PLAIN failed: ${response.substring(0, 100)}`;
+    }
+
+    return result;
+  }
+
+  /**
+   * Try AUTH LOGIN authentication
+   * @param {Socket} socket - Active socket
+   * @param {string} user - Username
+   * @param {string} pass - Password
+   * @returns {Promise<Object>} Auth result
+   */
+  async tryAuthLogin(socket, user, pass) {
+    const result = {
+      success: false,
+      error: null,
+      responses: []
+    };
+
+    // Send AUTH LOGIN
+    await this.sendSMTPCommand(socket, 'AUTH LOGIN');
+    const authResponse = await this.readSMTPResponse(socket);
+    result.responses.push(authResponse);
+
+    if (!authResponse.startsWith('334')) {
+      result.error = 'AUTH LOGIN not accepted';
+      return result;
+    }
+
+    // Send username (base64 encoded)
+    const userB64 = Buffer.from(user).toString('base64');
+    await this.sendSMTPCommand(socket, userB64);
+    const userResponse = await this.readSMTPResponse(socket);
+    result.responses.push(userResponse);
+
+    if (!userResponse.startsWith('334')) {
+      result.error = 'Username rejected';
+      return result;
+    }
+
+    // Send password (base64 encoded)
+    const passB64 = Buffer.from(pass).toString('base64');
+    await this.sendSMTPCommand(socket, passB64);
+    const passResponse = await this.readSMTPResponse(socket);
+    result.responses.push(passResponse);
+
+    // Check authentication success (235 = success)
+    if (passResponse.startsWith('235')) {
+      result.success = true;
+    } else if (passResponse.startsWith('535')) {
+      result.error = 'Invalid credentials (535)';
+    } else {
+      result.error = `Authentication failed: ${passResponse.substring(0, 100)}`;
     }
 
     return result;
@@ -464,8 +577,21 @@ class SMTPValidatorAdvanced {
       if (mxRecords && mxRecords.length > 0) {
         const mxDomain = mxRecords[0].exchange;
 
-        // Check if dangerous
-        if (this.isDangerousDomain(mxDomain)) {
+        // Special case: protection.outlook.com -> use outlook.com config
+        // (Like Python: if re.search(r'protection\.outlook\.com$', mx_domain): return domain_configs_cache['outlook.com'])
+        if (mxDomain.endsWith('protection.outlook.com')) {
+          console.log(`🔄 Detected protection.outlook.com -> Using outlook.com configuration`);
+          result.servers.push(
+            { host: 'smtp.office365.com', port: 587, ip: null },
+            { host: 'smtp-mail.outlook.com', port: 587, ip: null }
+          );
+          result.loginTemplate = '%EMAILADDRESS%';
+          return result;
+        }
+
+        // Check if dangerous (but allow .outlook.com domains)
+        // (Like Python: not re.search(r'\.outlook\.com$', mx_domain))
+        if (this.isDangerousDomain(mxDomain) && !mxDomain.endsWith('.outlook.com')) {
           console.log(`⚠️  Skipping dangerous domain: ${mxDomain}`);
           throw new Error('Security vendor domain - skipping');
         }
@@ -521,19 +647,104 @@ class SMTPValidatorAdvanced {
   }
 
   /**
-   * Guess login template for domain (like Python's login templates)
+   * Guess login template for domain (comprehensive for all major providers)
    * @param {string} domain - Email domain
    * @returns {string} Login template
    */
   guessLoginTemplate(domain) {
-    // Common domains that use just local part
-    const localPartDomains = ['yahoo', 'aol', 'att.net'];
+    const lowerDomain = domain.toLowerCase();
 
-    if (localPartDomains.some(d => domain.includes(d))) {
+    // Providers that use LOCAL PART ONLY (username without @domain)
+    const localPartProviders = [
+      'yahoo',          // Yahoo Mail
+      'ymail',          // Yahoo alternate
+      'rocketmail',     // Yahoo alternate
+      'aol',            // AOL
+      'aim',            // AOL Instant Messenger
+      'att.net',        // AT&T
+      'sbcglobal.net',  // AT&T/SBC
+      'bellsouth.net',  // AT&T/Bellsouth
+      'verizon.net',    // Verizon
+      'compuserve',     // CompuServe
+      'netscape.net',   // Netscape
+      'wmconnect.com',  // Various ISPs
+      'earthlink.net',  // Earthlink
+      'juno.com',       // Juno
+      'netzero.net'     // NetZero
+    ];
+
+    if (localPartProviders.some(provider => lowerDomain.includes(provider))) {
       return '%EMAILLOCALPART%';
     }
 
-    // Most domains use full email
+    // Microsoft/Outlook/Hotmail/Live - FULL EMAIL
+    // (protection.outlook.com handled separately)
+    if (lowerDomain.includes('outlook') ||
+        lowerDomain.includes('hotmail') ||
+        lowerDomain.includes('live.') ||
+        lowerDomain.includes('msn.') ||
+        lowerDomain.includes('office365')) {
+      return '%EMAILADDRESS%';
+    }
+
+    // Zoho - FULL EMAIL
+    if (lowerDomain.includes('zoho')) {
+      return '%EMAILADDRESS%';
+    }
+
+    // ProtonMail - FULL EMAIL
+    if (lowerDomain.includes('proton')) {
+      return '%EMAILADDRESS%';
+    }
+
+    // iCloud/me.com/mac.com - FULL EMAIL
+    if (lowerDomain.includes('icloud') ||
+        lowerDomain.includes('me.com') ||
+        lowerDomain.includes('mac.com')) {
+      return '%EMAILADDRESS%';
+    }
+
+    // GMX - FULL EMAIL
+    if (lowerDomain.includes('gmx')) {
+      return '%EMAILADDRESS%';
+    }
+
+    // Mail.com - FULL EMAIL
+    if (lowerDomain.includes('mail.com')) {
+      return '%EMAILADDRESS%';
+    }
+
+    // Yandex - FULL EMAIL
+    if (lowerDomain.includes('yandex')) {
+      return '%EMAILADDRESS%';
+    }
+
+    // Fastmail - FULL EMAIL
+    if (lowerDomain.includes('fastmail')) {
+      return '%EMAILADDRESS%';
+    }
+
+    // Tutanota - FULL EMAIL
+    if (lowerDomain.includes('tutanota')) {
+      return '%EMAILADDRESS%';
+    }
+
+    // Mail.ru - FULL EMAIL
+    if (lowerDomain.includes('mail.ru')) {
+      return '%EMAILADDRESS%';
+    }
+
+    // QQ Mail - FULL EMAIL
+    if (lowerDomain.includes('qq.com')) {
+      return '%EMAILADDRESS%';
+    }
+
+    // 163.com / 126.com - FULL EMAIL
+    if (lowerDomain.includes('163.com') || lowerDomain.includes('126.com')) {
+      return '%EMAILADDRESS%';
+    }
+
+    // Default: Most modern providers use FULL EMAIL
     return '%EMAILADDRESS%';
   }
 
