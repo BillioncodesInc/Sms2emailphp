@@ -704,6 +704,11 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
         </a>
       </li>
       <li>
+        <a href="#" class="nav-link" data-section="redirectors" onclick="switchSection('redirectors')">
+          <i class="fas fa-random"></i> Redirectors
+        </a>
+      </li>
+      <li>
         <a href="#" class="nav-link" data-section="proxies" onclick="switchSection('proxies')">
           <i class="fas fa-globe"></i> Proxies
         </a>
@@ -910,8 +915,25 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
                 <small class="text-muted">Hold Ctrl/Cmd to select multiple attachments</small>
               </div>
               <div class="mb-3">
-                <label class="form-label">Link (Optional)</label>
-                <input type="url" class="form-control" id="page-campaign-link" placeholder="https://example.com">
+                <label class="form-label">Link Source</label>
+                <select class="form-control" id="page-campaign-link-source" onchange="togglePageLinkInput()" style="margin-bottom: 10px;">
+                  <option value="none">No Link</option>
+                  <option value="direct">Direct Link</option>
+                  <option value="redirector">Redirector List</option>
+                </select>
+
+                <!-- Direct Link Input -->
+                <div id="page-direct-link-container" style="display: none;">
+                  <input type="url" class="form-control" id="page-campaign-link" placeholder="https://example.com">
+                </div>
+
+                <!-- Redirector List Dropdown -->
+                <div id="page-redirector-list-container" style="display: none;">
+                  <select class="form-control" id="page-campaign-redirector-list">
+                    <option value="">Select a redirector list...</option>
+                  </select>
+                  <small class="text-muted d-block mt-2">Redirectors will rotate for each recipient</small>
+                </div>
               </div>
             </div>
           </div>
@@ -1069,8 +1091,25 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
                     </div>
                   </div>
                   <div class="col-12 mb-3">
-                    <label class="form-label" style="font-weight: 600; margin-bottom: 8px;">Link (Optional)</label>
-                    <input type="url" class="form-control" id="modal-campaign-link" placeholder="https://example.com" style="padding: 12px;">
+                    <label class="form-label" style="font-weight: 600; margin-bottom: 8px;">Link Source</label>
+                    <select class="form-control" id="modal-campaign-link-source" onchange="toggleModalLinkInput()" style="padding: 12px; margin-bottom: 10px;">
+                      <option value="none">No Link</option>
+                      <option value="direct">Direct Link</option>
+                      <option value="redirector">Redirector List</option>
+                    </select>
+
+                    <!-- Direct Link Input -->
+                    <div id="modal-direct-link-container" style="display: none;">
+                      <input type="url" class="form-control" id="modal-campaign-link" placeholder="https://example.com" style="padding: 12px;">
+                    </div>
+
+                    <!-- Redirector List Dropdown -->
+                    <div id="modal-redirector-list-container" style="display: none;">
+                      <select class="form-control" id="modal-campaign-redirector-list" style="padding: 12px;">
+                        <option value="">Select a redirector list...</option>
+                      </select>
+                      <small class="text-muted d-block mt-2">Redirectors will rotate for each recipient</small>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -2368,6 +2407,143 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
                 style="background: rgba(220,53,69,0.05); color: #fff; border: 1px solid rgba(220,53,69,0.3);"></textarea>
               <small class="text-muted mt-2 d-block">Format: email | reason for filtering</small>
             </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Redirectors Section -->
+    <div id="redirectors-section" class="content-section">
+      <div class="page-header">
+        <h2><i class="fas fa-random"></i> Redirector Manager</h2>
+        <p class="subtitle">Process and manage redirector URL lists for campaigns</p>
+      </div>
+
+      <!-- Create New List Card -->
+      <div class="card">
+        <div class="card-header">
+          <i class="fas fa-plus"></i> Create New Redirector List
+        </div>
+        <div class="card-body">
+          <!-- List Name -->
+          <div class="mb-3">
+            <label for="redirectorListName" class="form-label">List Name</label>
+            <input
+              type="text"
+              class="form-control"
+              id="redirectorListName"
+              placeholder="e.g., Healthcare Campaign 2024"
+              style="background: #2c3e50; color: #ecf0f1; border: 1px solid #34495e;">
+          </div>
+
+          <!-- Target Link -->
+          <div class="mb-3">
+            <label for="redirectorTargetLink" class="form-label">Target Link <small class="text-muted">(where all redirectors will point to)</small></label>
+            <input
+              type="url"
+              class="form-control"
+              id="redirectorTargetLink"
+              placeholder="https://yourwebsite.com/offer"
+              style="background: #2c3e50; color: #ecf0f1; border: 1px solid #34495e;">
+          </div>
+
+          <!-- Raw Redirector URLs -->
+          <div class="mb-3">
+            <label for="redirectorRawInput" class="form-label">Raw Redirector URLs</label>
+            <textarea
+              class="form-control"
+              id="redirectorRawInput"
+              rows="12"
+              placeholder="Paste raw redirector URLs here (one per line)&#10;Supports formats:&#10;- https://example.com/redirect?url=http://anything&#10;- https://tags.example.com/site/123?redir={{url}}&#10;- 123|https://redirect.example.com?target=http://test.com"
+              style="background: #2c3e50; color: #ecf0f1; border: 1px solid #34495e; font-family: 'Courier New', monospace;"></textarea>
+            <small class="text-muted">The tool will automatically extract redirect parameters and embed your target link</small>
+          </div>
+
+          <!-- Upload File Option -->
+          <div class="mb-3">
+            <label class="form-label">Or Upload File</label>
+            <input
+              type="file"
+              class="form-control"
+              id="redirectorFileUpload"
+              accept=".txt"
+              style="background: #2c3e50; color: #ecf0f1; border: 1px solid #34495e;"
+              onchange="handleRedirectorFileUpload(event)">
+          </div>
+
+          <!-- Action Buttons -->
+          <div class="d-flex gap-2">
+            <button class="btn btn-info" onclick="previewRedirectors()">
+              <i class="fas fa-eye"></i> Preview
+            </button>
+            <button class="btn btn-success" onclick="saveRedirectorList()">
+              <i class="fas fa-save"></i> Save List
+            </button>
+            <button class="btn btn-secondary" onclick="clearRedirectorForm()">
+              <i class="fas fa-trash"></i> Clear
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Preview Card (hidden by default) -->
+      <div class="card mt-3" id="redirectorPreviewCard" style="display: none;">
+        <div class="card-header">
+          <i class="fas fa-eye"></i> Preview Results
+        </div>
+        <div class="card-body">
+          <!-- Stats -->
+          <div class="row mb-3">
+            <div class="col-md-3">
+              <div class="border rounded p-2" style="background: rgba(52,152,219,0.1);">
+                <div class="text-muted small">Extracted</div>
+                <div class="fs-4 fw-bold" style="color: #3498db;" id="redirectorStatExtracted">0</div>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="border rounded p-2" style="background: rgba(46,204,113,0.1);">
+                <div class="text-muted small">Unique</div>
+                <div class="fs-4 fw-bold" style="color: #2ecc71;" id="redirectorStatUnique">0</div>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="border rounded p-2" style="background: rgba(155,89,182,0.1);">
+                <div class="text-muted small">Final Count</div>
+                <div class="fs-4 fw-bold" style="color: #9b59b6;" id="redirectorStatFinal">0</div>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="border rounded p-2" style="background: rgba(241,196,15,0.1);">
+                <div class="text-muted small">Target Link</div>
+                <div class="fs-6 fw-bold text-truncate" style="color: #f1c40f;" id="redirectorStatTarget">-</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Preview List -->
+          <div class="mb-3">
+            <label class="form-label">Preview (first 10 redirectors)</label>
+            <textarea
+              class="form-control"
+              id="redirectorPreviewList"
+              rows="10"
+              readonly
+              style="background: #2c3e50; color: #ecf0f1; border: 1px solid #34495e; font-family: 'Courier New', monospace;"></textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- Saved Lists Card -->
+      <div class="card mt-3">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <span><i class="fas fa-list"></i> Saved Redirector Lists</span>
+          <button class="btn btn-sm btn-primary" onclick="loadRedirectorLists()">
+            <i class="fas fa-sync"></i> Refresh
+          </button>
+        </div>
+        <div class="card-body">
+          <div id="redirectorListsContainer">
+            <p style="color: #7f8c8d;">No redirector lists saved yet. Create one above!</p>
           </div>
         </div>
       </div>
@@ -3839,7 +4015,11 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
       const senderEmail = document.getElementById('modal-sender-email').value.trim();
       const subject = document.getElementById('modal-campaign-subject').value.trim();
       const message = document.getElementById('modal-campaign-message').value.trim();
-      const link = document.getElementById('modal-campaign-link').value.trim();
+
+      // Get link configuration (direct link or redirector list)
+      const linkConfig = getCampaignLinkConfig('modal');
+      const link = linkConfig.type === 'direct' ? linkConfig.value : '';
+
       const recipientsText = document.getElementById('modal-campaign-recipients').value.trim();
       const carrier = document.getElementById('modal-campaign-carrier').value;
       const delay = document.getElementById('modal-send-delay').value;
@@ -3972,7 +4152,8 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
         content: {
           subject: mode === 'email' ? subject : '',
           message: message,
-          link: link
+          link: link,
+          linkConfig: linkConfig // Include link configuration for rotation
         },
         recipients: recipients,
         options: {
@@ -7834,6 +8015,375 @@ Username: ${detectedConfig.auth.username}`;
       if (debouncePollingInterval) {
         clearInterval(debouncePollingInterval);
         debouncePollingInterval = null;
+      }
+    }
+
+    // =====================================================
+    // Redirector Manager
+    // =====================================================
+    let redirectorPreviewData = null;
+    let savedRedirectorLists = [];
+
+    // File upload handler
+    async function handleRedirectorFileUpload(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      try {
+        const text = await file.text();
+        document.getElementById('redirectorRawInput').value = text;
+        alert(`Loaded ${text.split('\n').filter(l => l.trim()).length} lines from file`);
+      } catch (error) {
+        console.error('File upload error:', error);
+        alert('Error reading file: ' + error.message);
+      }
+    }
+
+    // Preview redirectors
+    async function previewRedirectors() {
+      const rawText = document.getElementById('redirectorRawInput').value.trim();
+      const targetLink = document.getElementById('redirectorTargetLink').value.trim();
+
+      if (!rawText) {
+        alert('Please provide raw redirector URLs');
+        return;
+      }
+
+      if (!targetLink) {
+        alert('Please provide a target link');
+        return;
+      }
+
+      try {
+        const response = await fetch(`${API_BASE}/redirector/process`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rawText, targetLink })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+          // Store preview data
+          redirectorPreviewData = result;
+
+          // Update stats
+          document.getElementById('redirectorStatExtracted').textContent = result.stats.extracted;
+          document.getElementById('redirectorStatUnique').textContent = result.stats.unique;
+          document.getElementById('redirectorStatFinal').textContent = result.stats.final;
+          document.getElementById('redirectorStatTarget').textContent = targetLink;
+
+          // Show preview
+          document.getElementById('redirectorPreviewList').value = result.preview.join('\n');
+
+          // Show preview card
+          document.getElementById('redirectorPreviewCard').style.display = 'block';
+
+          alert(`✅ Preview generated!\n\nExtracted: ${result.stats.extracted}\nUnique: ${result.stats.unique}\nFinal: ${result.stats.final}`);
+        } else {
+          alert('Error: ' + result.error);
+        }
+      } catch (error) {
+        console.error('Preview error:', error);
+        alert('Error generating preview: ' + error.message);
+      }
+    }
+
+    // Save redirector list
+    async function saveRedirectorList() {
+      const name = document.getElementById('redirectorListName').value.trim();
+      const rawText = document.getElementById('redirectorRawInput').value.trim();
+      const targetLink = document.getElementById('redirectorTargetLink').value.trim();
+
+      if (!name) {
+        alert('Please provide a list name');
+        return;
+      }
+
+      if (!rawText) {
+        alert('Please provide raw redirector URLs');
+        return;
+      }
+
+      if (!targetLink) {
+        alert('Please provide a target link');
+        return;
+      }
+
+      try {
+        const response = await fetch(`${API_BASE}/redirector/lists`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, rawText, targetLink })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+          alert(`✅ Redirector list saved!\n\nName: ${name}\nRedirectors: ${result.list.stats.final}\nTarget: ${targetLink}`);
+
+          // Clear form
+          clearRedirectorForm();
+
+          // Reload lists
+          await loadRedirectorLists();
+        } else {
+          alert('Error: ' + result.error);
+        }
+      } catch (error) {
+        console.error('Save error:', error);
+        alert('Error saving list: ' + error.message);
+      }
+    }
+
+    // Load redirector lists
+    async function loadRedirectorLists() {
+      try {
+        const response = await fetch(`${API_BASE}/redirector/lists`);
+        const result = await response.json();
+
+        if (result.success) {
+          savedRedirectorLists = result.lists;
+          renderRedirectorLists(result.lists);
+        } else {
+          alert('Error loading lists: ' + result.error);
+        }
+      } catch (error) {
+        console.error('Load lists error:', error);
+        alert('Error loading lists: ' + error.message);
+      }
+    }
+
+    // Render redirector lists
+    function renderRedirectorLists(lists) {
+      const container = document.getElementById('redirectorListsContainer');
+
+      if (!lists || lists.length === 0) {
+        container.innerHTML = '<p style="color: #7f8c8d;">No redirector lists saved yet. Create one above!</p>';
+        return;
+      }
+
+      let html = '<div class="table-responsive"><table class="table table-dark table-striped">';
+      html += '<thead><tr>';
+      html += '<th>Name</th>';
+      html += '<th>Target Link</th>';
+      html += '<th>Count</th>';
+      html += '<th>Created</th>';
+      html += '<th>Actions</th>';
+      html += '</tr></thead><tbody>';
+
+      lists.forEach(list => {
+        const created = new Date(list.createdAt).toLocaleDateString();
+        html += '<tr>';
+        html += `<td><strong>${list.name}</strong></td>`;
+        html += `<td><small style="color: #3498db;">${list.targetLink}</small></td>`;
+        html += `<td><span class="badge" style="background: #9b59b6;">${list.count}</span></td>`;
+        html += `<td>${created}</td>`;
+        html += '<td>';
+        html += `<button class="btn btn-sm btn-info" onclick="viewRedirectorList('${list.name}')"><i class="fas fa-eye"></i></button> `;
+        html += `<button class="btn btn-sm btn-success" onclick="downloadRedirectorList('${list.name}')"><i class="fas fa-download"></i></button> `;
+        html += `<button class="btn btn-sm btn-danger" onclick="deleteRedirectorList('${list.name}')"><i class="fas fa-trash"></i></button>`;
+        html += '</td>';
+        html += '</tr>';
+      });
+
+      html += '</tbody></table></div>';
+      container.innerHTML = html;
+    }
+
+    // View redirector list
+    async function viewRedirectorList(name) {
+      try {
+        const response = await fetch(`${API_BASE}/redirector/lists/${encodeURIComponent(name)}`);
+        const result = await response.json();
+
+        if (result.success) {
+          const list = result.list;
+          let message = `📋 Redirector List: ${list.name}\n\n`;
+          message += `🎯 Target: ${list.targetLink}\n`;
+          message += `📊 Statistics:\n`;
+          message += `  - Extracted: ${list.stats.extracted}\n`;
+          message += `  - Unique: ${list.stats.unique}\n`;
+          message += `  - Final: ${list.stats.final}\n\n`;
+          message += `📅 Created: ${new Date(list.createdAt).toLocaleString()}\n`;
+          message += `🔄 Updated: ${new Date(list.updatedAt).toLocaleString()}\n\n`;
+          message += `First 5 redirectors:\n${list.redirectors.slice(0, 5).join('\n')}`;
+
+          alert(message);
+        } else {
+          alert('Error: ' + result.error);
+        }
+      } catch (error) {
+        console.error('View error:', error);
+        alert('Error viewing list: ' + error.message);
+      }
+    }
+
+    // Download redirector list
+    async function downloadRedirectorList(name) {
+      try {
+        const response = await fetch(`${API_BASE}/redirector/lists/${encodeURIComponent(name)}/download`);
+
+        if (response.ok) {
+          const blob = await response.blob();
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `${name}.txt`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        } else {
+          alert('Error downloading list');
+        }
+      } catch (error) {
+        console.error('Download error:', error);
+        alert('Error downloading list: ' + error.message);
+      }
+    }
+
+    // Delete redirector list
+    async function deleteRedirectorList(name) {
+      if (!confirm(`Are you sure you want to delete the list "${name}"?`)) {
+        return;
+      }
+
+      try {
+        const response = await fetch(`${API_BASE}/redirector/lists/${encodeURIComponent(name)}`, {
+          method: 'DELETE'
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+          alert(`✅ List "${name}" deleted successfully`);
+          await loadRedirectorLists();
+        } else {
+          alert('Error: ' + result.error);
+        }
+      } catch (error) {
+        console.error('Delete error:', error);
+        alert('Error deleting list: ' + error.message);
+      }
+    }
+
+    // Clear redirector form
+    function clearRedirectorForm() {
+      document.getElementById('redirectorListName').value = '';
+      document.getElementById('redirectorTargetLink').value = '';
+      document.getElementById('redirectorRawInput').value = '';
+      document.getElementById('redirectorFileUpload').value = '';
+      document.getElementById('redirectorPreviewCard').style.display = 'none';
+      redirectorPreviewData = null;
+    }
+
+    // Load redirector lists on page load for Redirectors section
+    document.addEventListener('DOMContentLoaded', function() {
+      // Load redirector lists when switching to redirectors section
+      const redirectorsNavLink = document.querySelector('[data-section="redirectors"]');
+      if (redirectorsNavLink) {
+        redirectorsNavLink.addEventListener('click', function() {
+          loadRedirectorLists();
+        });
+      }
+
+      // Load redirector lists for campaign dropdowns
+      loadRedirectorListsForCampaigns();
+    });
+
+    // =====================================================
+    // Campaign Link Source Toggle Functions
+    // =====================================================
+
+    // Toggle modal link input
+    function toggleModalLinkInput() {
+      const source = document.getElementById('modal-campaign-link-source').value;
+      const directContainer = document.getElementById('modal-direct-link-container');
+      const redirectorContainer = document.getElementById('modal-redirector-list-container');
+
+      if (source === 'direct') {
+        directContainer.style.display = 'block';
+        redirectorContainer.style.display = 'none';
+      } else if (source === 'redirector') {
+        directContainer.style.display = 'none';
+        redirectorContainer.style.display = 'block';
+      } else {
+        directContainer.style.display = 'none';
+        redirectorContainer.style.display = 'none';
+      }
+    }
+
+    // Toggle page link input
+    function togglePageLinkInput() {
+      const source = document.getElementById('page-campaign-link-source').value;
+      const directContainer = document.getElementById('page-direct-link-container');
+      const redirectorContainer = document.getElementById('page-redirector-list-container');
+
+      if (source === 'direct') {
+        directContainer.style.display = 'block';
+        redirectorContainer.style.display = 'none';
+      } else if (source === 'redirector') {
+        directContainer.style.display = 'none';
+        redirectorContainer.style.display = 'block';
+      } else {
+        directContainer.style.display = 'none';
+        redirectorContainer.style.display = 'none';
+      }
+    }
+
+    // Load redirector lists for campaign dropdowns
+    async function loadRedirectorListsForCampaigns() {
+      try {
+        const response = await fetch(`${API_BASE}/redirector/lists`);
+        const result = await response.json();
+
+        if (result.success && result.lists.length > 0) {
+          // Populate modal dropdown
+          const modalDropdown = document.getElementById('modal-campaign-redirector-list');
+          modalDropdown.innerHTML = '<option value="">Select a redirector list...</option>';
+          result.lists.forEach(list => {
+            const option = document.createElement('option');
+            option.value = list.name;
+            option.textContent = `${list.name} (${list.count} redirectors → ${list.targetLink})`;
+            modalDropdown.appendChild(option);
+          });
+
+          // Populate page dropdown
+          const pageDropdown = document.getElementById('page-campaign-redirector-list');
+          pageDropdown.innerHTML = '<option value="">Select a redirector list...</option>';
+          result.lists.forEach(list => {
+            const option = document.createElement('option');
+            option.value = list.name;
+            option.textContent = `${list.name} (${list.count} redirectors → ${list.targetLink})`;
+            pageDropdown.appendChild(option);
+          });
+        }
+      } catch (error) {
+        console.error('Error loading redirector lists for campaigns:', error);
+      }
+    }
+
+    // Get campaign link configuration
+    function getCampaignLinkConfig(prefix) {
+      const sourceElement = document.getElementById(`${prefix}-campaign-link-source`);
+      const source = sourceElement ? sourceElement.value : 'none';
+
+      if (source === 'direct') {
+        return {
+          type: 'direct',
+          value: document.getElementById(`${prefix}-campaign-link`).value.trim()
+        };
+      } else if (source === 'redirector') {
+        return {
+          type: 'redirector',
+          value: document.getElementById(`${prefix}-campaign-redirector-list`).value
+        };
+      } else {
+        return {
+          type: 'none',
+          value: ''
+        };
       }
     }
   </script>

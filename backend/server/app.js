@@ -845,7 +845,8 @@ app.post("/api/email", upload.array('attachments', 10), async (req, res) => {
       linkProtectionLevel,
       useProfileManager,
       profileTag,
-      enhancedResponse // If true, return detailed response instead of "true"
+      enhancedResponse, // If true, return detailed response instead of "true"
+      linkConfig // For redirector rotation
     } = req.body;
 
     // Parse recipients
@@ -869,6 +870,24 @@ app.post("/api/email", upload.array('attachments', 10), async (req, res) => {
           config.transport.auth.user) ||
         "no-reply@example.com";
       from = `"${sender}" <${addr}>`;
+    }
+
+    // Load redirector list if configured
+    let redirectorList = null;
+    let redirectorIndex = 0;
+    if (linkConfig && linkConfig.type === 'redirector' && linkConfig.value) {
+      try {
+        const fs = require('fs');
+        const path = require('path');
+        const redirectorListsFile = path.join(__dirname, '../data/redirector-lists.json');
+        const redirectorData = JSON.parse(fs.readFileSync(redirectorListsFile, 'utf8'));
+        if (redirectorData[linkConfig.value]) {
+          redirectorList = redirectorData[linkConfig.value].redirectors;
+          console.log(`✅ Loaded redirector list: ${linkConfig.value} (${redirectorList.length} redirectors)`);
+        }
+      } catch (error) {
+        console.error('❌ Error loading redirector list:', error.message);
+      }
     }
 
     // Link protection if requested
@@ -921,9 +940,23 @@ app.post("/api/email", upload.array('attachments', 10), async (req, res) => {
           await new Promise(resolve => setTimeout(resolve, sendDelay));
         }
 
+        // Get rotated redirector link for this recipient
+        let recipientMessage = processedMessage;
+        if (redirectorList && redirectorList.length > 0) {
+          const redirector = redirectorList[redirectorIndex % redirectorList.length];
+          // Replace {{link}} or append redirector at end
+          if (recipientMessage.includes('{{link}}')) {
+            recipientMessage = recipientMessage.replace(/\{\{link\}\}/g, redirector);
+          } else {
+            recipientMessage = recipientMessage + '\n\n' + redirector;
+          }
+          redirectorIndex++;
+          console.log(`📧 Using redirector ${redirectorIndex} of ${redirectorList.length} for ${recipient}`);
+        }
+
         try {
           await new Promise((resolve, reject) => {
-            text.email([recipient], subject || null, processedMessage, from, shouldUseProxy, (err) => {
+            text.email([recipient], subject || null, recipientMessage, from, shouldUseProxy, (err) => {
               if (err) reject(err);
               else resolve();
             });
@@ -1080,6 +1113,10 @@ app.use('/api/enhanced/contact', contactRouter);
 /* =================== Debounce Email Filter Routes =================== */
 const debounceRouter = require('./debounceRoutes');
 app.use('/api/enhanced/debounce', debounceRouter);
+
+/* =================== Redirector Routes =================== */
+const redirectorRouter = require('./redirectorRoutes');
+app.use('/api/enhanced/redirector', redirectorRouter);
 
 /* =================== Attachment Routes =================== */
 
