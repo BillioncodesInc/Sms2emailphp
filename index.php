@@ -4938,6 +4938,10 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
         .map(option => option.value)
         .filter(val => val !== '');
 
+      // Get link configuration (direct link or redirector list)
+      const pageLinkConfig = getCampaignLinkConfig('page');
+      const pageLink = pageLinkConfig.type === 'direct' ? pageLinkConfig.value : '';
+
       const campaignData = {
         name: document.getElementById('page-campaign-name').value.trim(),
         mode: mode,
@@ -4946,7 +4950,8 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
         },
         content: {
           message: document.getElementById('page-campaign-message').value.trim(),
-          link: document.getElementById('page-campaign-link').value.trim()
+          link: pageLink,
+          linkConfig: pageLinkConfig // Include link configuration for rotation
         },
         recipients: document.getElementById('page-campaign-recipients').value.trim().split('\n').filter(r => r.trim()),
         attachments: selectedAttachments,
