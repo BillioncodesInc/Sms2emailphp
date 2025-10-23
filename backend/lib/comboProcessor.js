@@ -10,6 +10,7 @@
 const smtpDatabase = require('./smtpDatabase');
 const smtpDiscovery = require('./smtpDiscovery');
 const smtpValidator = require('./smtpValidator');
+const smtpValidatorAdvanced = require('./smtpValidatorAdvanced'); // NEW: Advanced validator matching mailpass2smtp.py
 const blacklistChecker = require('./blacklistChecker');
 const EventEmitter = require('events');
 
@@ -20,6 +21,7 @@ class ComboProcessor extends EventEmitter {
     this.timeout = options.timeout || 10000;
     this.skipBlacklist = options.skipBlacklist || false;
     this.retryFailed = options.retryFailed || false;
+    this.useAdvancedValidator = options.useAdvancedValidator !== false; // Default to true (use raw sockets like mailpass2smtp.py)
 
     this.sessionId = this.generateSessionId();
     this.isRunning = false;
@@ -68,7 +70,10 @@ class ComboProcessor extends EventEmitter {
       error: null,
       blacklisted: false,
       connectionTime: 0,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      usedAdvancedValidator: this.useAdvancedValidator,
+      usedNeighbor: false,
+      attempts: []
     };
 
     try {
@@ -79,59 +84,89 @@ class ComboProcessor extends EventEmitter {
         return result;
       }
 
-      // PHASE 1: Database Lookup
-      let smtpConfig = smtpDatabase.lookupByEmail(email);
+      // USE ADVANCED VALIDATOR (mailpass2smtp.py methodology)
+      if (this.useAdvancedValidator) {
+        this.emit('phase', { email, phase: 'advanced_validation', status: 'starting' });
 
-      if (smtpConfig) {
-        result.phase = 'database_lookup';
-        result.smtp = smtpConfig.servers[0].host;
-        result.port = smtpConfig.servers[0].port;
-        result.username = smtpDatabase.formatLogin(email, smtpConfig.loginTemplate);
+        const advancedResult = await smtpValidatorAdvanced.validateCombo(email, password, {
+          timeout: this.timeout
+        });
 
-        this.emit('phase', { email, phase: 'database_lookup', found: true });
-        this.stats.fromDatabase++;
+        result.valid = advancedResult.valid;
+        result.smtp = advancedResult.smtp;
+        result.port = advancedResult.port;
+        result.username = advancedResult.username;
+        result.error = advancedResult.error;
+        result.connectionTime = advancedResult.connectionTime;
+        result.usedNeighbor = advancedResult.usedNeighbor;
+        result.attempts = advancedResult.attempts;
+        result.phase = 'advanced_validation';
 
-      } else {
-        // PHASE 2: SMTP Discovery
-        result.phase = 'discovery';
-        this.emit('phase', { email, phase: 'discovery', status: 'starting' });
-
-        const discovered = await smtpDiscovery.discover(email);
-
-        if (!discovered.success || discovered.servers.length === 0) {
-          result.error = 'No SMTP servers found';
-          this.emit('phase', { email, phase: 'discovery', found: false });
+        if (advancedResult.valid) {
+          this.emit('phase', { email, phase: 'advanced_validation', valid: true, usedNeighbor: advancedResult.usedNeighbor });
+          this.stats.fromDiscovery++; // Count as discovery since it found the server
+        } else {
+          this.emit('phase', { email, phase: 'advanced_validation', valid: false, error: advancedResult.error });
           return result;
         }
 
-        result.smtp = discovered.servers[0].host;
-        result.port = discovered.servers[0].port;
-        result.username = email; // Default to full email
+      } else {
+        // LEGACY FLOW (original implementation)
 
-        this.emit('phase', { email, phase: 'discovery', found: true, servers: discovered.servers.length });
-        this.stats.fromDiscovery++;
+        // PHASE 1: Database Lookup
+        let smtpConfig = smtpDatabase.lookupByEmail(email);
+
+        if (smtpConfig) {
+          result.phase = 'database_lookup';
+          result.smtp = smtpConfig.servers[0].host;
+          result.port = smtpConfig.servers[0].port;
+          result.username = smtpDatabase.formatLogin(email, smtpConfig.loginTemplate);
+
+          this.emit('phase', { email, phase: 'database_lookup', found: true });
+          this.stats.fromDatabase++;
+
+        } else {
+          // PHASE 2: SMTP Discovery
+          result.phase = 'discovery';
+          this.emit('phase', { email, phase: 'discovery', status: 'starting' });
+
+          const discovered = await smtpDiscovery.discover(email);
+
+          if (!discovered.success || discovered.servers.length === 0) {
+            result.error = 'No SMTP servers found';
+            this.emit('phase', { email, phase: 'discovery', found: false });
+            return result;
+          }
+
+          result.smtp = discovered.servers[0].host;
+          result.port = discovered.servers[0].port;
+          result.username = email; // Default to full email
+
+          this.emit('phase', { email, phase: 'discovery', found: true, servers: discovered.servers.length });
+          this.stats.fromDiscovery++;
+        }
+
+        // PHASE 3: Credential Validation
+        this.emit('phase', { email, phase: 'validation', status: 'testing' });
+
+        const validationResult = await smtpValidator.testCredentials({
+          host: result.smtp,
+          port: result.port,
+          user: result.username,
+          pass: password,
+          timeout: this.timeout
+        });
+
+        result.connectionTime = validationResult.connectionTime;
+
+        if (!validationResult.valid) {
+          result.error = validationResult.error;
+          this.emit('phase', { email, phase: 'validation', valid: false, error: validationResult.error });
+          return result;
+        }
+
+        this.emit('phase', { email, phase: 'validation', valid: true });
       }
-
-      // PHASE 3: Credential Validation
-      this.emit('phase', { email, phase: 'validation', status: 'testing' });
-
-      const validationResult = await smtpValidator.testCredentials({
-        host: result.smtp,
-        port: result.port,
-        user: result.username,
-        pass: password,
-        timeout: this.timeout
-      });
-
-      result.connectionTime = validationResult.connectionTime;
-
-      if (!validationResult.valid) {
-        result.error = validationResult.error;
-        this.emit('phase', { email, phase: 'validation', valid: false, error: validationResult.error });
-        return result;
-      }
-
-      this.emit('phase', { email, phase: 'validation', valid: true });
 
       // PHASE 4: Blacklist Check (optional)
       if (!this.skipBlacklist && blacklistChecker) {
