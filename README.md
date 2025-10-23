@@ -94,6 +94,32 @@ SE Gateway is an enterprise-grade email and SMS campaign management platform tha
 - ✅ **Multiple Export Formats** - TXT, CSV, JSON, VCF
 - ✅ **Concurrent Processing** - Process 5+ accounts simultaneously
 
+### 🔀 Redirector Manager (UrlTeam Methodology)
+- ✅ **Open Redirect Processing** - Extract from UrlTeam archives (goo.gl, bit.ly dumps)
+- ✅ **Automatic Extraction** - `grep "=http"` pattern matching for redirect parameters
+- ✅ **ID Removal** - `cut -d '|' -f 2` pipe-separated format support
+- ✅ **Smart Deduplication** - First 20 characters domain-based deduplication
+- ✅ **Target Embedding** - Protocol-relative URLs (`//domain.com/path`)
+- ✅ **Campaign Integration** - Automatic rotation per recipient
+- ✅ **Supported Formats**:
+  - `https://track.adform.net/adfserve/?bn=12345;reviurl=http://target.com`
+  - `https://secure.adnxs.com/seg?redir=http://target.com`
+  - `12345|https://tags.bluekai.com/site/35702?redir=http://target.com`
+  - `https://p.rfihub.com/cm?forward=http://target.com`
+- ✅ **Scale** - Each redirector handles ~50,000 emails
+- ✅ **Rotation** - Round-robin distribution across recipients
+- ✅ **Persistence** - Lists saved to disk with metadata
+
+### 🔍 Debounce Email Filter
+- ✅ **Security Vendor Detection** - Filters emails from Mimecast, Proofpoint, Barracuda, etc.
+- ✅ **Domain Filtering** - Removes .gov, .mil, .edu addresses
+- ✅ **DNS Validation** - MX, A, PTR record lookups
+- ✅ **Username Pattern Detection** - Identifies security/abuse/noreply addresses
+- ✅ **Real-Time Progress** - WebSocket with HTTP polling fallback
+- ✅ **Whitelist Support** - 643,696 verified safe domains
+- ✅ **Concurrent Processing** - 50 simultaneous validations
+- ✅ **Export Options** - Separate safe/dangerous lists
+
 ### 🚀 Advanced Deliverability (MadCat Mailer Integration)
 
 #### 1. Custom Email Headers ✅

@@ -2454,9 +2454,9 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
               class="form-control"
               id="redirectorRawInput"
               rows="12"
-              placeholder="Paste raw redirector URLs here (one per line)&#10;Supports formats:&#10;- https://example.com/redirect?url=http://anything&#10;- https://tags.example.com/site/123?redir={{url}}&#10;- 123|https://redirect.example.com?target=http://test.com"
+              placeholder="Paste raw redirector URLs here (one per line)&#10;Supports formats:&#10;- https://track.adform.net/adfserve/?bn=12345;reviurl=http://example.com&#10;- https://secure.adnxs.com/seg?redir=http://target.com&#10;- 12345|https://tags.bluekai.com/site/35702?redir=http://site.com&#10;- https://p.rfihub.com/cm?forward=http://destination.io&#10;&#10;From UrlTeam archives (goo.gl, bit.ly dumps) or custom sources"
               style="background: #2c3e50; color: #ecf0f1; border: 1px solid #34495e; font-family: 'Courier New', monospace;"></textarea>
-            <small class="text-muted">The tool will automatically extract redirect parameters and embed your target link</small>
+            <small class="text-muted">Extracts redirect parameters (grep "=http"), removes IDs (cut -d '|' -f 2), deduplicates, and embeds your target link</small>
           </div>
 
           <!-- Upload File Option -->
