@@ -40,7 +40,8 @@ async function saveRedirectorLists(lists) {
   );
 }
 
-// Extract URLs with redirect parameters (similar to Python script)
+// Extract URLs with redirect parameters
+// Matches: grep "=http" behavior from the methodology
 function extractRedirectUrls(text) {
   const lines = text.split('\n');
   const extracted = [];
@@ -49,16 +50,18 @@ function extractRedirectUrls(text) {
     line = line.trim();
     if (!line) continue;
 
-    // Remove ID field if separated by pipe
+    // Remove ID field if separated by pipe (like: 123456|https://...)
+    // Matches: cut -d '|' -f 2
     if (line.includes('|')) {
       const parts = line.split('|');
       if (parts.length >= 2) {
-        line = parts[1].trim();
+        line = parts.slice(1).join('|').trim(); // Take everything after first pipe
       }
     }
 
     // Check if line contains redirect parameter pattern
-    if (line.includes('=http') || line.includes('{{url}}')) {
+    // Matches: grep "=http" - finds URLs with parameters like ?url=http or &redirect=https
+    if (line.includes('=http')) {
       extracted.push(line);
     }
   }
@@ -66,22 +69,29 @@ function extractRedirectUrls(text) {
   return extracted;
 }
 
-// Replace redirect targets with placeholder
+// Replace redirect targets with {{url}} placeholder
+// Matches the sed + re.sub pipeline:
+// 1. sed 's/=http/=https\:\/\/example.com%23/g'
+// 2. re.sub(r'https://example.com[^&]+', r'{{url}}', ...)
 function prepareRedirectors(urls) {
   return urls.map(url => {
-    // Replace existing target URLs with {{url}} placeholder
+    // Replace all target URLs in parameters with {{url}} placeholder
+    // Captures patterns like: ?url=https://example.com/path or &redir=http://target.com
+    // Matches everything from =http:// to the next & or end of string
     return url.replace(/=https?:\/\/[^&\s]+/g, '={{url}}');
   });
 }
 
-// Remove duplicates based on domain
+// Remove duplicates based on first 20 characters
+// Matches Python script: if not next[0:20] in prev
 function removeDuplicates(urls) {
   const seen = new Set();
   const unique = [];
 
   for (const url of urls) {
-    // Extract first 20 characters as domain signature
+    // Extract first 20 characters as domain signature (exactly like Python)
     const signature = url.substring(0, Math.min(20, url.length));
+
     if (!seen.has(signature)) {
       seen.add(signature);
       unique.push(url);
