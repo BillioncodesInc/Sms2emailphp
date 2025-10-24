@@ -148,26 +148,102 @@ function embedTargetLink(redirectors, targetLink) {
   });
 }
 
-// Test if URL is accessible (HEAD request with 3 second timeout)
-async function testUrl(url) {
+// Test if URL actually redirects to the target URL
+async function testRedirectUrl(url, expectedTarget) {
   try {
-    const response = await axios.head(url, {
-      timeout: 3000,
-      maxRedirects: 5,
-      validateStatus: (status) => status < 500 // Accept any non-server-error status
+    // Clean expected target for comparison (remove protocol and trailing slashes)
+    const cleanTarget = expectedTarget.replace(/^https?:\/\//, '').replace(/\/+$/, '').toLowerCase();
+
+    const response = await axios.get(url, {
+      timeout: 5000,
+      maxRedirects: 10,
+      validateStatus: (status) => status < 500, // Accept redirects and success
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      }
     });
+
+    // Get the final URL after all redirects
+    const finalUrl = response.request?.res?.responseUrl || response.config.url;
+    const cleanFinal = finalUrl.replace(/^https?:\/\//, '').replace(/\/+$/, '').toLowerCase();
+
+    // Check if final URL contains the expected target
+    const redirectsCorrectly = cleanFinal.includes(cleanTarget) || cleanTarget.includes(cleanFinal.split('/')[0]);
+
     return {
+      valid: redirectsCorrectly,
       accessible: true,
       status: response.status,
-      error: null
+      finalUrl: finalUrl,
+      redirectsTo: cleanFinal,
+      expectedTarget: cleanTarget,
+      error: redirectsCorrectly ? null : 'Does not redirect to target URL'
     };
   } catch (error) {
+    // Check if it's a redirect error with a final URL
+    if (error.response) {
+      const finalUrl = error.request?.res?.responseUrl || error.config?.url || url;
+      const cleanFinal = finalUrl.replace(/^https?:\/\//, '').replace(/\/+$/, '').toLowerCase();
+      const cleanTarget = expectedTarget.replace(/^https?:\/\//, '').replace(/\/+$/, '').toLowerCase();
+      const redirectsCorrectly = cleanFinal.includes(cleanTarget) || cleanTarget.includes(cleanFinal.split('/')[0]);
+
+      return {
+        valid: redirectsCorrectly,
+        accessible: true,
+        status: error.response.status,
+        finalUrl: finalUrl,
+        redirectsTo: cleanFinal,
+        expectedTarget: cleanTarget,
+        error: redirectsCorrectly ? null : 'Does not redirect to target URL'
+      };
+    }
+
     return {
+      valid: false,
       accessible: false,
       status: null,
+      finalUrl: null,
+      redirectsTo: null,
+      expectedTarget: expectedTarget.replace(/^https?:\/\//, '').replace(/\/+$/, '').toLowerCase(),
       error: error.message
     };
   }
+}
+
+// Test URLs concurrently in batches
+async function testUrlsBatch(urls, expectedTarget, batchSize = 10, progressCallback) {
+  const results = [];
+  const total = urls.length;
+  let completed = 0;
+
+  for (let i = 0; i < urls.length; i += batchSize) {
+    const batch = urls.slice(i, i + batchSize);
+
+    // Test batch concurrently
+    const batchResults = await Promise.all(
+      batch.map(async (url) => {
+        const result = await testRedirectUrl(url, expectedTarget);
+        completed++;
+
+        // Call progress callback if provided
+        if (progressCallback) {
+          progressCallback({
+            url,
+            result,
+            completed,
+            total,
+            percent: Math.round((completed / total) * 100)
+          });
+        }
+
+        return { url, ...result };
+      })
+    );
+
+    results.push(...batchResults);
+  }
+
+  return results;
 }
 
 // Process raw redirector text
@@ -249,41 +325,7 @@ router.get('/lists/:name', async (req, res) => {
   }
 });
 
-// Process and preview redirectors (without saving)
-router.post('/process', async (req, res) => {
-  try {
-    const { rawText, targetLink } = req.body;
-
-    if (!rawText || !targetLink) {
-      return res.status(400).json({
-        success: false,
-        error: 'rawText and targetLink are required'
-      });
-    }
-
-    const result = processRedirectors(rawText, targetLink);
-
-    res.json({
-      success: true,
-      stats: {
-        extracted: result.extracted,
-        prepared: result.prepared,
-        unique: result.unique,
-        final: result.final.length
-      },
-      preview: result.final.slice(0, 10), // First 10 for preview
-      total: result.final.length
-    });
-  } catch (error) {
-    console.error('❌ Error processing redirectors:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
-});
-
-// Start streaming processing with WebSocket updates and URL testing
+// Process redirectors with validation (streaming with WebSocket updates)
 router.post('/process/stream', async (req, res) => {
   try {
     const { rawText, targetLink, testUrls = true } = req.body;
@@ -301,6 +343,7 @@ router.post('/process/stream', async (req, res) => {
     // Initialize session state
     const sessionState = {
       sessionId,
+      targetLink, // Store target link for saving later
       status: 'processing',
       total: 0,
       processed: 0,
@@ -361,55 +404,57 @@ async function processRedirectorsStreaming(sessionId, rawText, targetLink, testU
 
     const final = result.final;
 
-    // Step 5: Test URLs (if requested)
+    // Step 5: Test URLs concurrently (if requested)
     if (testUrls) {
       emitWebSocketUpdate(sessionId, {
         type: 'phase',
         phase: 'testing',
-        message: `Testing ${final.length} URLs...`,
+        message: `Testing ${final.length} URLs for redirect validation...`,
         total: final.length
       });
 
-      for (let i = 0; i < final.length; i++) {
-        const url = final[i];
-
-        // Test URL
-        const testResult = await testUrl(url);
-
-        sessionState.processed++;
-        if (testResult.accessible) {
+      // Test URLs in batches of 10 concurrently
+      const testResults = await testUrlsBatch(final, targetLink, 10, (progress) => {
+        // Update session state
+        sessionState.processed = progress.completed;
+        if (progress.result.valid) {
           sessionState.valid++;
         } else {
           sessionState.invalid++;
         }
 
-        sessionState.results.push({
-          url,
-          accessible: testResult.accessible,
-          status: testResult.status,
-          error: testResult.error
-        });
-
-        // Emit progress update every URL
+        // Emit real-time progress update
         emitWebSocketUpdate(sessionId, {
           type: 'progress',
-          current: sessionState.processed,
-          total: sessionState.total,
+          current: progress.completed,
+          total: progress.total,
           valid: sessionState.valid,
           invalid: sessionState.invalid,
-          url,
-          accessible: testResult.accessible,
-          status: testResult.status,
-          percent: Math.round((sessionState.processed / sessionState.total) * 100)
+          url: progress.url,
+          valid: progress.result.valid,
+          accessible: progress.result.accessible,
+          status: progress.result.status,
+          finalUrl: progress.result.finalUrl,
+          redirectsTo: progress.result.redirectsTo,
+          expectedTarget: progress.result.expectedTarget,
+          error: progress.result.error,
+          percent: progress.percent
         });
-      }
+      });
+
+      // Store all results
+      sessionState.results = testResults;
     } else {
       // No testing, just mark all as processed
       sessionState.processed = final.length;
       sessionState.results = final.map(url => ({
         url,
+        valid: null,
         accessible: null,
         status: null,
+        finalUrl: null,
+        redirectsTo: null,
+        expectedTarget: null,
         error: null
       }));
     }
@@ -504,15 +549,31 @@ router.get('/process/stream/:sessionId/results', async (req, res) => {
   }
 });
 
-// Save redirector list
+// Save redirector list from session results (validated URLs only)
 router.post('/lists', async (req, res) => {
   try {
-    const { name, rawText, targetLink } = req.body;
+    const { name, sessionId, saveOnlyValid = true } = req.body;
 
-    if (!name || !rawText || !targetLink) {
+    if (!name || !sessionId) {
       return res.status(400).json({
         success: false,
-        error: 'name, rawText, and targetLink are required'
+        error: 'name and sessionId are required'
+      });
+    }
+
+    // Get session results
+    const sessionState = activeSessions.get(sessionId);
+    if (!sessionState) {
+      return res.status(404).json({
+        success: false,
+        error: 'Session not found or expired'
+      });
+    }
+
+    if (sessionState.status !== 'completed') {
+      return res.status(400).json({
+        success: false,
+        error: 'Session is not completed yet'
       });
     }
 
@@ -527,19 +588,36 @@ router.post('/lists', async (req, res) => {
       });
     }
 
-    // Process redirectors
-    const result = processRedirectors(rawText, targetLink);
+    // Filter results based on validation
+    let redirectorsToSave;
+    if (saveOnlyValid) {
+      // Save only URLs that successfully redirect to target
+      redirectorsToSave = sessionState.results
+        .filter(r => r.valid === true)
+        .map(r => r.url);
+    } else {
+      // Save all URLs (including untested/invalid)
+      redirectorsToSave = sessionState.results.map(r => r.url);
+    }
+
+    if (redirectorsToSave.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'No valid redirectors to save. All URLs failed validation.'
+      });
+    }
 
     // Save list
     lists[name] = {
       name,
-      targetLink,
-      redirectors: result.final,
+      targetLink: sessionState.targetLink,
+      redirectors: redirectorsToSave,
       stats: {
-        extracted: result.extracted,
-        prepared: result.prepared,
-        unique: result.unique,
-        final: result.final.length
+        total: sessionState.total,
+        valid: sessionState.valid,
+        invalid: sessionState.invalid,
+        saved: redirectorsToSave.length,
+        validationEnabled: sessionState.results[0]?.valid !== null
       },
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
@@ -547,11 +625,12 @@ router.post('/lists', async (req, res) => {
 
     await saveRedirectorLists(lists);
 
-    console.log(`✅ Redirector list saved: ${name} (${result.final.length} redirectors)`);
+    console.log(`✅ Redirector list saved: ${name} (${redirectorsToSave.length} valid redirectors out of ${sessionState.total} total)`);
 
     res.json({
       success: true,
-      list: lists[name]
+      list: lists[name],
+      message: `Saved ${redirectorsToSave.length} validated redirectors`
     });
   } catch (error) {
     console.error('❌ Error saving redirector list:', error);
