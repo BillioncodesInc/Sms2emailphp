@@ -2352,7 +2352,13 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
           </div>
 
           <div class="mb-3">
-            <label class="form-label">Proxy List (one per line)</label>
+            <label class="form-label">Upload Proxy File</label>
+            <input type="file" class="form-control" id="proxyFileInput" accept=".txt,.csv" onchange="handleProxyFileUpload(event)">
+            <small class="text-muted">Upload a .txt or .csv file with proxies (one per line)</small>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Or Paste Proxy List (one per line)</label>
             <textarea class="form-control" id="proxyBulkInput" rows="10" placeholder="192.168.1.1:8080&#10;user:pass@192.168.1.2:8080&#10;10.0.0.1:3128"></textarea>
             <small class="text-muted">Format: ip:port or user:pass@ip:port (one per line)</small>
           </div>
@@ -2375,6 +2381,9 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
             </button>
             <button class="btn btn-sm" onclick="downloadSelectedProxies()" id="downloadProxiesBtn" style="background: #3b82f6; color: white; padding: 8px 16px; display: none;">
               <i class="fas fa-download"></i> Download Selected
+            </button>
+            <button class="btn btn-sm" onclick="deleteSelectedProxies()" id="deleteSelectedBtn" style="background: #f59e0b; color: white; padding: 8px 16px; display: none;">
+              <i class="fas fa-trash-alt"></i> Delete Selected
             </button>
             <button class="btn btn-sm" onclick="removeFailedProxies()" id="removeFailedBtn" style="background: #ef4444; color: white; padding: 8px 16px; display: none;">
               <i class="fas fa-trash"></i> Remove Failed
@@ -5588,6 +5597,38 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
       }
     }
 
+    // Handle proxy file upload
+    function handleProxyFileUpload(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const content = e.target.result;
+        const textarea = document.getElementById('proxyBulkInput');
+
+        // Append to existing content or replace
+        if (textarea.value.trim()) {
+          textarea.value += '\n' + content;
+        } else {
+          textarea.value = content;
+        }
+
+        // Show success message
+        const lineCount = content.split('\n').filter(l => l.trim()).length;
+        showProxyPageResponse(`✓ Loaded ${lineCount} proxies from file "${file.name}"`, 'success');
+
+        // Clear file input
+        event.target.value = '';
+      };
+
+      reader.onerror = function() {
+        showProxyPageResponse('Failed to read file', 'danger');
+      };
+
+      reader.readAsText(file);
+    }
+
     // Add bulk proxies
     async function addBulkProxies() {
       const bulkText = document.getElementById('proxyBulkInput').value.trim();
@@ -5649,9 +5690,11 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
     // Global proxy list state
     let currentProxies = [];
     let failedProxyIndices = [];
+    let proxyCurrentPage = 1;
+    let proxyItemsPerPage = 20;
 
-    // Load proxies list from backend
-    async function loadProxiesList() {
+    // Load proxies list from backend with pagination
+    async function loadProxiesList(page = proxyCurrentPage) {
       try {
         const response = await fetch(`${API_LEGACY}/proxy/list`);
         const data = await response.json();
@@ -5664,12 +5707,20 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
           count.textContent = '0';
           document.getElementById('testProxiesBtn').style.display = 'none';
           document.getElementById('removeFailedBtn').style.display = 'none';
+          document.getElementById('deleteSelectedBtn').style.display = 'none';
           currentProxies = [];
           return;
         }
 
         currentProxies = data.proxies;
         count.textContent = data.count;
+        proxyCurrentPage = page;
+
+        // Calculate pagination
+        const totalPages = Math.ceil(data.proxies.length / proxyItemsPerPage);
+        const startIndex = (page - 1) * proxyItemsPerPage;
+        const endIndex = startIndex + proxyItemsPerPage;
+        const paginatedProxies = data.proxies.slice(startIndex, endIndex);
 
         // Show action buttons
         document.getElementById('testProxiesBtn').style.display = 'block';
@@ -5679,32 +5730,57 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
           <div style="padding: 0;">
             <div style="display: flex; align-items: center; padding: 12px 20px; background: rgba(255,255,255,0.05); border-bottom: 1px solid rgba(255,255,255,0.1);">
               <input type="checkbox" id="selectAllProxies" onchange="toggleSelectAll(this)" style="margin-right: 15px; width: 18px; height: 18px; cursor: pointer;">
-              <label for="selectAllProxies" style="margin: 0; cursor: pointer; user-select: none; flex: 1;">Select All</label>
+              <label for="selectAllProxies" style="margin: 0; cursor: pointer; user-select: none; flex: 1;">Select All (Page)</label>
               <div style="width: 200px; font-weight: 600; font-size: 0.9rem;">Open Mail Ports</div>
             </div>
-            ${data.proxies.map((proxy, index) => `
-              <div class="proxy-row" data-index="${index}" style="display: flex; align-items: center; padding: 15px 20px; border-bottom: 1px solid rgba(255,255,255,0.1); transition: background 0.2s;">
-                <input type="checkbox" class="proxy-checkbox" data-index="${index}" onchange="updateProxySelection()" style="margin-right: 15px; width: 18px; height: 18px; cursor: pointer;">
+            ${paginatedProxies.map((proxy, paginatedIndex) => {
+              const actualIndex = startIndex + paginatedIndex;
+              return `
+              <div class="proxy-row" data-index="${actualIndex}" style="display: flex; align-items: center; padding: 15px 20px; border-bottom: 1px solid rgba(255,255,255,0.1); transition: background 0.2s;">
+                <input type="checkbox" class="proxy-checkbox" data-index="${actualIndex}" onchange="updateProxySelection()" style="margin-right: 15px; width: 18px; height: 18px; cursor: pointer;">
                 <div style="flex: 1; display: flex; align-items: center; gap: 15px;">
                   <div style="flex: 1;">
                     <div style="font-weight: 600; margin-bottom: 4px;">${proxy.host}:${proxy.port}</div>
                     <div style="font-size: 0.85rem; color: rgba(255,255,255,0.6);">
                       <span style="background: rgba(99, 102, 241, 0.2); padding: 2px 8px; border-radius: 4px; margin-right: 8px;">${proxy.protocol.toUpperCase()}</span>
-                      <span id="proxy-status-${index}" style="padding: 2px 8px; border-radius: 4px; background: rgba(156, 163, 175, 0.2);">
+                      <span id="proxy-status-${actualIndex}" style="padding: 2px 8px; border-radius: 4px; background: rgba(156, 163, 175, 0.2);">
                         <i class="fas fa-question-circle"></i> Unknown
                       </span>
                     </div>
                   </div>
-                  <div id="proxy-ports-${index}" style="width: 200px; font-size: 0.85rem; color: rgba(255,255,255,0.6);">
+                  <div id="proxy-ports-${actualIndex}" style="width: 200px; font-size: 0.85rem; color: rgba(255,255,255,0.6);">
                     -
                   </div>
-                  <button class="btn btn-sm btn-outline" onclick="deleteProxy(${index})" style="padding: 6px 12px;">
+                  <button class="btn btn-sm btn-outline" onclick="deleteProxy(${actualIndex})" style="padding: 6px 12px;">
                     <i class="fas fa-trash"></i>
                   </button>
                 </div>
               </div>
-            `).join('')}
+            `;
+            }).join('')}
           </div>
+          ${totalPages > 1 ? `
+          <div style="padding: 20px; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid rgba(255,255,255,0.1);">
+            <div style="font-size: 0.9rem; color: rgba(255,255,255,0.6);">
+              Showing ${startIndex + 1}-${Math.min(endIndex, data.proxies.length)} of ${data.proxies.length} proxies
+            </div>
+            <div style="display: flex; gap: 5px;">
+              <button class="btn btn-sm btn-outline" onclick="loadProxiesList(1)" ${page === 1 ? 'disabled' : ''} style="padding: 6px 12px;">
+                <i class="fas fa-angle-double-left"></i>
+              </button>
+              <button class="btn btn-sm btn-outline" onclick="loadProxiesList(${page - 1})" ${page === 1 ? 'disabled' : ''} style="padding: 6px 12px;">
+                <i class="fas fa-angle-left"></i>
+              </button>
+              <span style="padding: 6px 12px; color: rgba(255,255,255,0.8);">Page ${page} of ${totalPages}</span>
+              <button class="btn btn-sm btn-outline" onclick="loadProxiesList(${page + 1})" ${page === totalPages ? 'disabled' : ''} style="padding: 6px 12px;">
+                <i class="fas fa-angle-right"></i>
+              </button>
+              <button class="btn btn-sm btn-outline" onclick="loadProxiesList(${totalPages})" ${page === totalPages ? 'disabled' : ''} style="padding: 6px 12px;">
+                <i class="fas fa-angle-double-right"></i>
+              </button>
+            </div>
+          </div>
+          ` : ''}
         `;
       } catch (error) {
         console.error('Failed to load proxies:', error);
@@ -5727,14 +5803,18 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
       const checkboxes = document.querySelectorAll('.proxy-checkbox:checked');
       const testBtn = document.getElementById('testProxiesBtn');
       const downloadBtn = document.getElementById('downloadProxiesBtn');
+      const deleteSelectedBtn = document.getElementById('deleteSelectedBtn');
 
       if (checkboxes.length > 0) {
         testBtn.innerHTML = `<i class="fas fa-check-circle"></i> Test Selected (${checkboxes.length})`;
         downloadBtn.innerHTML = `<i class="fas fa-download"></i> Download Selected (${checkboxes.length})`;
+        deleteSelectedBtn.innerHTML = `<i class="fas fa-trash-alt"></i> Delete Selected (${checkboxes.length})`;
         downloadBtn.style.display = 'block';
+        deleteSelectedBtn.style.display = 'block';
       } else {
         testBtn.innerHTML = '<i class="fas fa-check-circle"></i> Test Selected';
         downloadBtn.style.display = 'none';
+        deleteSelectedBtn.style.display = 'none';
       }
     }
 
@@ -5951,6 +6031,56 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
         console.error('Delete proxy error:', error);
         showProxyPageResponse('Failed to delete proxy: ' + error.message, 'danger');
       }
+    }
+
+    // Delete selected proxies
+    async function deleteSelectedProxies() {
+      const checkboxes = document.querySelectorAll('.proxy-checkbox:checked');
+
+      if (checkboxes.length === 0) {
+        showProxyPageResponse('Please select at least one proxy to delete', 'warning');
+        return;
+      }
+
+      if (!confirm(`Delete ${checkboxes.length} selected proxy(ies)?`)) {
+        return;
+      }
+
+      const indices = Array.from(checkboxes).map(cb => parseInt(cb.dataset.index));
+      let deletedCount = 0;
+      let errorCount = 0;
+
+      showProxyPageResponse(`Deleting ${indices.length} proxies...`, 'info');
+
+      // Delete proxies sequentially from highest index to lowest to maintain correct indices
+      indices.sort((a, b) => b - a);
+
+      for (const index of indices) {
+        try {
+          const response = await fetch(`${API_LEGACY}/proxy/${index}`, {
+            method: 'DELETE'
+          });
+
+          const data = await response.json();
+
+          if (data.success) {
+            deletedCount++;
+          } else {
+            errorCount++;
+          }
+        } catch (error) {
+          console.error(`Delete proxy ${index} error:`, error);
+          errorCount++;
+        }
+      }
+
+      if (errorCount === 0) {
+        showProxyPageResponse(`✓ Successfully deleted ${deletedCount} proxy(ies)`, 'success');
+      } else {
+        showProxyPageResponse(`Deleted ${deletedCount} proxy(ies), ${errorCount} failed`, 'warning');
+      }
+
+      loadProxiesList();
     }
 
     // Show response message on Proxies page
