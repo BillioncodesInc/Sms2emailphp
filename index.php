@@ -648,6 +648,55 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
 
     console.log('API Base URL:', API_BASE);
     console.log('API Legacy URL:', API_LEGACY);
+
+    // Check proxy configuration status
+    async function checkProxyStatus() {
+      try {
+        const response = await fetch(`${API_LEGACY}/proxy/config`);
+        const data = await response.json();
+
+        const hasProxies = data.success && data.proxies && data.proxies.length > 0;
+        const proxyCount = hasProxies ? data.proxies.length : 0;
+        const protocol = data.protocol || 'socks5';
+
+        return {
+          configured: hasProxies,
+          count: proxyCount,
+          protocol: protocol
+        };
+      } catch (error) {
+        console.error('Error checking proxy status:', error);
+        return { configured: false, count: 0, protocol: '' };
+      }
+    }
+
+    // Update proxy status notices in UI
+    async function updateProxyNotices() {
+      const status = await checkProxyStatus();
+
+      const sections = [
+        { noticeId: 'comboProxyNotice', statusId: 'comboProxyStatus', name: 'SMTP Combo Validator' },
+        { noticeId: 'inboxProxyNotice', statusId: 'inboxProxyStatus', name: 'Inbox Searcher' },
+        { noticeId: 'contactProxyNotice', statusId: 'contactProxyStatus', name: 'Contact Extractor' }
+      ];
+
+      sections.forEach(section => {
+        const noticeEl = document.getElementById(section.noticeId);
+        const statusEl = document.getElementById(section.statusId);
+
+        if (noticeEl && statusEl) {
+          if (status.configured) {
+            noticeEl.style.background = 'rgba(16, 185, 129, 0.1)';
+            noticeEl.style.borderLeft = '4px solid #10b981';
+            statusEl.innerHTML = `<i class="fas fa-check-circle"></i> ${status.count} proxies configured (${status.protocol.toUpperCase()}). You can enable proxy usage for IP protection.`;
+          } else {
+            noticeEl.style.background = 'rgba(239, 68, 68, 0.1)';
+            noticeEl.style.borderLeft = '4px solid #ef4444';
+            statusEl.innerHTML = `<i class="fas fa-exclamation-triangle"></i> No proxies configured. <a href="#" onclick="switchSection('proxies'); return false;" style="color: #667eea; text-decoration: underline;">Configure proxies</a> for IP protection.`;
+          }
+        }
+      });
+    }
   </script>
 </head>
 <body>
@@ -1591,6 +1640,12 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
         <i class="fas fa-check-circle"></i> SMTP Combo Validator
       </h3>
 
+      <!-- Proxy Status Notice -->
+      <div class="alert" id="comboProxyNotice" style="background: rgba(255, 193, 7, 0.1); border-left: 4px solid #ffc107; margin-bottom: 20px;">
+        <i class="fas fa-info-circle"></i>
+        <span id="comboProxyStatus">Checking proxy configuration...</span>
+      </div>
+
       <div class="card mb-4">
         <div class="card-header">
           <i class="fas fa-upload"></i> Upload Combo List
@@ -2024,15 +2079,24 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
               class="form-control font-monospace"
               id="inboxSmtpList"
               rows="8"
-              placeholder="password1|user1@gmail.com&#10;password2|user2@yahoo.com&#10;password3|user3@outlook.com"
+              placeholder="smtp.gmail.com|587|user1@gmail.com|password1&#10;smtp.yahoo.com|587|user2@yahoo.com|password2&#10;smtp-mail.outlook.com|587|user3@outlook.com|password3"
               style="background: rgba(0,0,0,0.2); color: #fff; border: 1px solid rgba(255,255,255,0.1);"></textarea>
-            <small class="text-muted">Format: password|email (one per line)</small>
+            <small class="text-muted">Format: smtp|port|email|password (one per line)</small>
           </div>
 
           <div class="mb-3">
             <label class="form-label fw-bold">Search Keywords (comma-separated)</label>
             <input type="text" class="form-control" id="inboxKeywords" placeholder="invoice, payment, receipt, order" style="background: rgba(0,0,0,0.2); color: #fff; border: 1px solid rgba(255,255,255,0.1);">
             <small class="text-muted">Enter keywords to search for in email subjects and senders</small>
+          </div>
+
+          <div class="mb-3">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="inboxUseProxies">
+              <label class="form-check-label" for="inboxUseProxies">
+                Use configured proxies (protects IP)
+              </label>
+            </div>
           </div>
 
           <div class="d-flex gap-2">
@@ -2131,6 +2195,12 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
         <p class="subtitle">Extract contact lists from email accounts</p>
       </div>
 
+      <!-- Proxy Status Notice -->
+      <div class="alert" id="contactProxyNotice" style="background: rgba(255, 193, 7, 0.1); border-left: 4px solid #ffc107; margin-bottom: 20px;">
+        <i class="fas fa-info-circle"></i>
+        <span id="contactProxyStatus">Checking proxy configuration...</span>
+      </div>
+
       <!-- Upload/Input Card -->
       <div class="card mb-4">
         <div class="card-header">
@@ -2144,9 +2214,9 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
               class="form-control font-monospace"
               id="contactSmtpList"
               rows="8"
-              placeholder="password1|user1@gmail.com&#10;password2|user2@yahoo.com&#10;password3|user3@outlook.com"
+              placeholder="smtp.gmail.com|587|user1@gmail.com|password1&#10;smtp.yahoo.com|587|user2@yahoo.com|password2&#10;smtp-mail.outlook.com|587|user3@outlook.com|password3"
               style="background: rgba(0,0,0,0.2); color: #fff; border: 1px solid rgba(255,255,255,0.1);"></textarea>
-            <small class="text-muted">Format: password|email (one per line)</small>
+            <small class="text-muted">Format: smtp|port|email|password (one per line)</small>
           </div>
 
           <div class="mb-3">
@@ -2161,6 +2231,12 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
               <input class="form-check-input" type="checkbox" id="contactIncludePhone" checked>
               <label class="form-check-label" for="contactIncludePhone">
                 Include phone numbers (if available)
+              </label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="contactUseProxies">
+              <label class="form-check-label" for="contactUseProxies">
+                Use configured proxies (protects IP)
               </label>
             </div>
           </div>
@@ -4699,7 +4775,11 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
         loadCampaignsList();
         startCampaignsPolling();
       } else if (sectionName === 'smtp-profiles') {
-        // Load SMTP profiles if needed
+        // Update proxy status when entering SMTP profiles section
+        updateProxyNotices();
+      } else if (sectionName === 'inbox-searcher' || sectionName === 'contact-extractor') {
+        // Update proxy status when entering these sections
+        updateProxyNotices();
       } else if (sectionName === 'proxies') {
         // Load proxies list
         loadProxiesList();
@@ -8295,6 +8375,9 @@ Username: ${detectedConfig.auth.username}`;
 
     // Load redirector lists on page load for Redirectors section
     document.addEventListener('DOMContentLoaded', function() {
+      // Check proxy status on page load
+      updateProxyNotices();
+
       // Load redirector lists when switching to redirectors section
       const redirectorsNavLink = document.querySelector('[data-section="redirectors"]');
       if (redirectorsNavLink) {
