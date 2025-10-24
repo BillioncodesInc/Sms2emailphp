@@ -115,10 +115,29 @@ class ImapHandler {
   }
 
   /**
-   * Parse combo result format (password|email) to extract credentials
+   * Parse combo result format to extract credentials
+   * Supports multiple formats:
+   * - smtp|port|email|password (from combo validator output)
+   * - password|email (legacy format)
+   * - email:password (common format)
    */
   parseComboResult(comboString) {
     const parts = comboString.trim().split('|');
+
+    // Format: smtp|port|email|password (from combo validator)
+    // Example: smtp.gmail.com|587|user@gmail.com|password123
+    if (parts.length === 4) {
+      return {
+        smtp: parts[0],
+        port: parseInt(parts[1]),
+        email: parts[2],
+        password: parts[3],
+        username: parts[2],
+        domain: parts[2].split('@')[1]
+      };
+    }
+
+    // Format: password|email (legacy format)
     if (parts.length === 2) {
       return {
         password: parts[0],
@@ -127,7 +146,8 @@ class ImapHandler {
         domain: parts[1].split('@')[1]
       };
     }
-    // Also support email:password format
+
+    // Format: email:password (common format)
     const colonParts = comboString.trim().split(':');
     if (colonParts.length === 2) {
       return {
@@ -137,7 +157,8 @@ class ImapHandler {
         domain: colonParts[0].split('@')[1]
       };
     }
-    throw new Error('Invalid combo format. Expected password|email or email:password');
+
+    throw new Error('Invalid combo format. Expected smtp|port|email|password, password|email, or email:password');
   }
 
   /**
