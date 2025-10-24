@@ -6,8 +6,11 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover">
   <meta name="referrer" content="never">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>SE Gateway - Unified Campaign Manager</title>
 
   <!-- CSS Libraries -->
@@ -584,6 +587,7 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
       .main-content {
         margin-left: 0;
         padding-top: 70px;
+        padding: 70px 15px 20px 15px;
       }
 
       .wizard-steps {
@@ -596,6 +600,216 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
 
       .stats-grid {
         grid-template-columns: 1fr;
+      }
+
+      /* Cards */
+      .card {
+        margin-bottom: 15px;
+      }
+
+      .card-header {
+        padding: 12px 15px;
+        font-size: 14px;
+      }
+
+      /* Buttons */
+      .btn, button {
+        padding: 12px 16px;
+        font-size: 14px;
+        min-height: 44px; /* Touch-friendly */
+      }
+
+      .btn-group {
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .btn-group .btn {
+        width: 100%;
+      }
+
+      /* Forms */
+      .form-control, .form-select, textarea {
+        font-size: 16px; /* Prevents zoom on iOS */
+        padding: 12px;
+        min-height: 44px;
+      }
+
+      .form-label {
+        font-size: 14px;
+        margin-bottom: 6px;
+      }
+
+      .row {
+        margin: 0 -10px;
+      }
+
+      .col-md-6, .col-md-4, .col-md-3 {
+        padding: 0 10px;
+        margin-bottom: 15px;
+      }
+
+      /* Tables */
+      .table-responsive {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+
+      table {
+        font-size: 13px;
+      }
+
+      table th, table td {
+        padding: 8px 6px;
+        white-space: nowrap;
+      }
+
+      /* Page Header */
+      .page-header h2 {
+        font-size: 22px;
+      }
+
+      .page-header .subtitle {
+        font-size: 13px;
+      }
+
+      /* Campaign Steps */
+      .campaign-step {
+        margin-bottom: 15px;
+      }
+
+      .step-connector {
+        display: none;
+      }
+
+      /* Progress Indicators */
+      .campaign-form-step {
+        padding: 15px;
+      }
+
+      /* Modals */
+      .modal-dialog {
+        margin: 10px;
+      }
+
+      .modal-content {
+        border-radius: 8px;
+      }
+
+      /* File Upload */
+      .file-upload-area {
+        padding: 20px;
+        font-size: 14px;
+      }
+
+      /* Textarea */
+      textarea {
+        min-height: 120px;
+      }
+
+      /* Badge and tags */
+      .badge {
+        font-size: 11px;
+        padding: 4px 8px;
+      }
+
+      /* Stat cards */
+      .stat-value {
+        font-size: 24px;
+      }
+
+      .stat-label {
+        font-size: 12px;
+      }
+
+      /* Info notices */
+      .info-notice {
+        padding: 12px;
+        font-size: 13px;
+      }
+    }
+
+    /* Tablet Responsive (768px - 1024px) */
+    @media (min-width: 769px) and (max-width: 1024px) {
+      .main-content {
+        padding: 30px 20px;
+      }
+
+      .sidebar {
+        width: 220px;
+      }
+
+      .main-content {
+        margin-left: 220px;
+      }
+
+      .card {
+        margin-bottom: 20px;
+      }
+
+      /* Buttons remain touch-friendly */
+      .btn, button {
+        min-height: 42px;
+        padding: 10px 18px;
+      }
+
+      /* Forms remain touch-friendly */
+      .form-control, .form-select, textarea {
+        font-size: 15px;
+        min-height: 42px;
+      }
+
+      /* Tables */
+      table {
+        font-size: 14px;
+      }
+
+      /* Two column grid for medium screens */
+      .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    /* Small Mobile (320px - 480px) */
+    @media (max-width: 480px) {
+      .main-content {
+        padding: 70px 10px 15px 10px;
+      }
+
+      .page-header h2 {
+        font-size: 20px;
+      }
+
+      .card {
+        border-radius: 8px;
+      }
+
+      /* Stack all columns */
+      .col-md-6, .col-md-4, .col-md-3, .col-md-12 {
+        width: 100%;
+        padding: 0 5px;
+      }
+
+      /* Smaller buttons on very small screens */
+      .btn, button {
+        font-size: 13px;
+        padding: 10px 12px;
+      }
+
+      /* Reduce modal padding */
+      .modal-body {
+        padding: 15px;
+      }
+
+      /* Campaign progress indicator */
+      .campaign-step .step-number {
+        width: 35px;
+        height: 35px;
+        font-size: 14px;
+      }
+
+      .campaign-step .step-label {
+        font-size: 11px;
       }
     }
 
