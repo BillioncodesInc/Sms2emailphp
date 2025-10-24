@@ -970,7 +970,8 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
       const status = await checkSmtpStatus();
 
       const sections = [
-        { noticeId: 'campaignSmtpNotice', statusId: 'campaignSmtpStatus', name: 'Campaign' }
+        { noticeId: 'campaignSmtpNotice', statusId: 'campaignSmtpStatus', name: 'Campaign' },
+        { noticeId: 'comboSmtpNotice', statusId: 'comboSmtpStatus', name: 'SMTP Combo Validator' }
       ];
 
       sections.forEach(section => {
@@ -982,7 +983,7 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
             noticeEl.style.background = 'rgba(16, 185, 129, 0.1)';
             noticeEl.style.borderLeft = '4px solid #10b981';
             if (status.type === 'single') {
-              statusEl.innerHTML = `<i class="fas fa-check-circle"></i> SMTP configured: ${status.service} (Single Mode)`;
+              statusEl.innerHTML = `<i class="fas fa-check-circle"></i> SMTP configured: ${status.service} (Single Mode, 1 account)`;
             } else if (status.type === 'bulk') {
               statusEl.innerHTML = `<i class="fas fa-check-circle"></i> SMTP configured: ${status.count} accounts (Bulk Mode)`;
             }
@@ -1978,6 +1979,12 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
       <div class="alert" id="comboProxyNotice" style="background: rgba(255, 193, 7, 0.1); border-left: 4px solid #ffc107; margin-bottom: 20px;">
         <i class="fas fa-info-circle"></i>
         <span id="comboProxyStatus">Checking proxy configuration...</span>
+      </div>
+
+      <!-- SMTP Status Notice -->
+      <div class="alert" id="comboSmtpNotice" style="background: rgba(255, 193, 7, 0.1); border-left: 4px solid #ffc107; margin-bottom: 20px;">
+        <i class="fas fa-info-circle"></i>
+        <span id="comboSmtpStatus">Checking SMTP configuration...</span>
       </div>
 
       <div class="card mb-4">
@@ -3705,6 +3712,9 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
 
         if (result === 'true' || result.includes('true')) {
           showSingleSMTPResponse('SMTP configured successfully!', 'success');
+          // Update SMTP notices and dashboard stats
+          updateSmtpNotices();
+          updateDashboardSmtpStats();
         } else {
           showSingleSMTPResponse('SMTP configuration failed', 'danger');
         }
@@ -3960,6 +3970,9 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
 
         if (result === 'true' || result.includes('true')) {
           showBulkSMTPResponse(`Successfully configured ${lines.length} SMTP accounts!`, 'success');
+          // Update SMTP notices and dashboard stats
+          updateSmtpNotices();
+          updateDashboardSmtpStats();
         } else {
           showBulkSMTPResponse('Bulk SMTP configuration failed', 'danger');
         }
@@ -8977,10 +8990,35 @@ Username: ${detectedConfig.auth.username}`;
       redirectorPreviewData = null;
     }
 
+    // Update Dashboard SMTP Stats
+    async function updateDashboardSmtpStats() {
+      try {
+        const status = await checkSmtpStatus();
+        const statProfilesEl = document.getElementById('stat-profiles');
+
+        if (statProfilesEl) {
+          if (status.configured) {
+            if (status.type === 'single') {
+              statProfilesEl.textContent = '1';
+            } else if (status.type === 'bulk') {
+              statProfilesEl.textContent = status.count || '0';
+            }
+          } else {
+            statProfilesEl.textContent = '0';
+          }
+        }
+      } catch (error) {
+        console.error('Failed to update dashboard SMTP stats:', error);
+      }
+    }
+
     // Load redirector lists on page load for Redirectors section
     document.addEventListener('DOMContentLoaded', function() {
       // Check proxy status on page load
       updateProxyNotices();
+
+      // Update SMTP stats on dashboard
+      updateDashboardSmtpStats();
 
       // Load redirector lists when switching to redirectors section
       const redirectorsNavLink = document.querySelector('[data-section="redirectors"]');

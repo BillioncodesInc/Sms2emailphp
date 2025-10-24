@@ -383,9 +383,9 @@ app.post("/api/proxy/test", async (req, res) => {
     return res.json({ success: false, message: 'No proxies to test' });
   }
 
-  const results = [];
+  // Test proxies in parallel for faster results
+  const testPromises = [];
 
-  // Test each proxy by actually trying to connect through it
   for (let i = 0; i < proxyConfig.proxies.length; i++) {
     if (indices && !indices.includes(i)) continue;
 
@@ -394,38 +394,40 @@ app.post("/api/proxy/test", async (req, res) => {
 
     // Basic validation first
     if (!proxy.host || !proxy.port || isNaN(proxy.port) || parseInt(proxy.port) < 1 || parseInt(proxy.port) > 65535) {
-      results.push({
+      testPromises.push(Promise.resolve({
         index: i,
         host: proxy.host,
         port: proxy.port,
         status: 'failed',
         message: 'Invalid proxy configuration'
-      });
+      }));
       continue;
     }
 
-    try {
-      // Test proxy by connecting to google.com
-      const testResult = await testProxyConnectivity(proxy, protocol);
-      results.push({
-        index: i,
-        host: proxy.host,
-        port: proxy.port,
-        status: testResult.success ? 'online' : 'failed',
-        message: testResult.message,
-        responseTime: testResult.responseTime,
-        openPorts: testResult.openPorts || []
-      });
-    } catch (error) {
-      results.push({
-        index: i,
-        host: proxy.host,
-        port: proxy.port,
-        status: 'failed',
-        message: error.message || 'Connection failed'
-      });
-    }
+    // Test proxy by connecting to google.com (parallel)
+    testPromises.push(
+      testProxyConnectivity(proxy, protocol)
+        .then(testResult => ({
+          index: i,
+          host: proxy.host,
+          port: proxy.port,
+          status: testResult.success ? 'online' : 'failed',
+          message: testResult.message,
+          responseTime: testResult.responseTime,
+          openPorts: testResult.openPorts || []
+        }))
+        .catch(error => ({
+          index: i,
+          host: proxy.host,
+          port: proxy.port,
+          status: 'failed',
+          message: error.message || 'Connection failed'
+        }))
+    );
   }
+
+  // Wait for all tests to complete in parallel
+  const results = await Promise.all(testPromises);
 
   res.json({
     success: true,
