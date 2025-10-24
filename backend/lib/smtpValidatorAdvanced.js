@@ -96,15 +96,37 @@ class SMTPValidatorAdvanced {
 
       const socket = socketResult.socket;
 
-      // Perform SMTP conversation
-      const authResult = await this.performSMTPAuth(socket, config.user, config.pass, config.port);
+      // Add persistent error handler to catch any errors during SMTP conversation
+      let socketError = null;
+      const socketErrorHandler = (err) => {
+        socketError = err;
+        console.error(`Socket error during SMTP auth: ${err.message}`);
+      };
+      socket.on('error', socketErrorHandler);
 
-      result.valid = authResult.valid;
-      result.error = authResult.error;
-      result.connectionTime = Date.now() - startTime;
-      result.smtpResponses = authResult.responses;
+      try {
+        // Perform SMTP conversation
+        const authResult = await this.performSMTPAuth(socket, config.user, config.pass, config.port);
 
-      socket.end();
+        result.valid = authResult.valid;
+        result.error = authResult.error;
+        result.connectionTime = Date.now() - startTime;
+        result.smtpResponses = authResult.responses;
+
+      } catch (authError) {
+        // If socket error occurred during auth, use that; otherwise use auth error
+        result.error = socketError ? socketError.message : authError.message;
+      } finally {
+        // Clean up socket
+        try {
+          socket.removeListener('error', socketErrorHandler);
+          if (!socket.destroyed) {
+            socket.destroy();
+          }
+        } catch (cleanupError) {
+          // Ignore cleanup errors
+        }
+      }
 
     } catch (error) {
       result.error = error.message || 'Unknown error';
@@ -333,7 +355,15 @@ class SMTPValidatorAdvanced {
           // Upgrade to TLS
           activeSocket = tls.connect({
             socket: activeSocket,
-            rejectUnauthorized: false
+            rejectUnauthorized: false,
+            minVersion: 'TLSv1',
+            maxVersion: 'TLSv1.3'
+          });
+
+          // Add error handler to the upgraded TLS socket
+          activeSocket.on('error', (err) => {
+            console.error(`TLS upgrade error: ${err.message}`);
+            // Error will be caught by outer try-catch
           });
 
           // Send EHLO again after STARTTLS
