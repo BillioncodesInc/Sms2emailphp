@@ -807,6 +807,116 @@ app.post("/api/smtp/verify", (req, res) => {
   });
 });
 
+/* POST /api/smtp/test-bulk => Test individual SMTP accounts in bulk list */
+app.post("/api/smtp/test-bulk", async (req, res) => {
+  try {
+    const { smtplist, service, secureConnection } = req.body;
+
+    if (!smtplist || !Array.isArray(smtplist) || smtplist.length === 0) {
+      return res.json({
+        success: false,
+        error: "smtplist is required and must be a non-empty array"
+      });
+    }
+
+    const results = [];
+    const smtpHelper = require('../lib/smtp');
+
+    for (let i = 0; i < smtplist.length; i++) {
+      const line = smtplist[i].trim();
+      if (!line) continue;
+
+      const parts = line.split('|');
+      let host, port, user, pass;
+
+      try {
+        // Determine format based on service and parts length
+        if (service && service !== 'none') {
+          // Format: password|email
+          if (parts.length === 2) {
+            [pass, user] = parts;
+            const smtpInfo = smtpHelper.getServiceConfig(service, user);
+            if (!smtpInfo) {
+              throw new Error(`Unknown service: ${service}`);
+            }
+            host = smtpInfo.host;
+            port = smtpInfo.port;
+          } else {
+            throw new Error('Invalid format for service-based SMTP. Expected: password|email');
+          }
+        } else {
+          // Format: host|port|username|password
+          if (parts.length === 4) {
+            [host, port, user, pass] = parts;
+            port = parseInt(port);
+            if (isNaN(port) || port < 1 || port > 65535) {
+              throw new Error(`Invalid port: ${parts[1]}`);
+            }
+          } else {
+            throw new Error('Invalid format for custom SMTP. Expected: host|port|username|password');
+          }
+        }
+
+        // Create transporter for this account
+        const transportConfig = {
+          host,
+          port: parseInt(port),
+          secure: secureConnection || port == 465,
+          auth: { user, pass }
+        };
+
+        const transporter = nodemailer.createTransport(transportConfig);
+
+        // Test the connection with timeout
+        const timeoutMs = 15000; // 15 seconds
+        const verifyPromise = transporter.verify();
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Connection timeout')), timeoutMs)
+        );
+
+        await Promise.race([verifyPromise, timeoutPromise]);
+
+        results.push({
+          index: i,
+          email: user,
+          host: host,
+          port: port,
+          success: true,
+          message: 'Connected successfully'
+        });
+
+      } catch (error) {
+        results.push({
+          index: i,
+          email: user || 'unknown',
+          host: host || 'unknown',
+          port: port || 'unknown',
+          success: false,
+          error: error.message || String(error)
+        });
+      }
+    }
+
+    const successCount = results.filter(r => r.success).length;
+    const failedCount = results.length - successCount;
+
+    res.json({
+      success: true,
+      tested: results.length,
+      passed: successCount,
+      failed: failedCount,
+      results: results
+    });
+
+  } catch (error) {
+    console.error('Bulk SMTP test error:', error);
+    res.json({
+      success: false,
+      error: error.message || String(error)
+    });
+  }
+});
+
 /* POST /api/smtp/health => JSON with domain, hasMX, hasSPF, hasDMARC */
 app.post("/api/smtp/health", async (req, res) => {
   try {

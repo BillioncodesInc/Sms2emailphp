@@ -3944,36 +3944,54 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
         return;
       }
 
-      document.getElementById('bulkSmtpTestResult').textContent = 'Testing all accounts...';
+      const smtplist = bulkList.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+      document.getElementById('bulkSmtpTestResult').textContent = `Testing ${smtplist.length} accounts...`;
 
       try {
-        // First save the bulk config temporarily
-        const smtplist = bulkList.split('\n').map(line => line.trim()).filter(line => line.length > 0);
-
-        const data = {
-          service,
-          secureConnection: secure,
-          smtplist: smtplist,
-          bulk: 'true'
-        };
-
-        await fetch(`${API_LEGACY}/config`, {
+        // Call the new bulk test endpoint
+        const response = await fetch(`${API_LEGACY}/smtp/test-bulk`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(data)
+          body: JSON.stringify({
+            smtplist: smtplist,
+            service: service,
+            secureConnection: secure
+          })
         });
 
-        // Then test it
-        const response = await fetch(`${API_LEGACY}/smtp/test`, {
-          method: 'POST'
-        });
-        const result = await response.text();
+        const result = await response.json();
 
-        if (result === 'true') {
-          document.getElementById('bulkSmtpTestResult').innerHTML = '<span style="color: var(--success-color);">✓ All connections successful</span>';
-        } else {
-          document.getElementById('bulkSmtpTestResult').innerHTML = '<span style="color: var(--danger-color);">✗ Connection failed</span>';
+        if (!result.success) {
+          document.getElementById('bulkSmtpTestResult').innerHTML = `<span style="color: var(--danger-color);">✗ Test failed: ${result.error}</span>`;
+          return;
         }
+
+        // Show summary
+        const passed = result.passed || 0;
+        const failed = result.failed || 0;
+        const total = result.tested || 0;
+
+        if (failed === 0) {
+          document.getElementById('bulkSmtpTestResult').innerHTML = `<span style="color: var(--success-color);">✓ All ${passed} accounts connected successfully</span>`;
+        } else {
+          document.getElementById('bulkSmtpTestResult').innerHTML = `<span style="color: var(--warning-color);">⚠ ${passed} passed, ${failed} failed out of ${total}</span>`;
+        }
+
+        // Show detailed results in a scrollable section
+        if (result.results && result.results.length > 0) {
+          let detailsHTML = '<div style="margin-top: 15px; max-height: 300px; overflow-y: auto; background: rgba(0,0,0,0.3); padding: 15px; border-radius: 8px;">';
+          result.results.forEach(r => {
+            if (r.success) {
+              detailsHTML += `<div style="margin-bottom: 8px; color: #10b981;">✓ ${r.email} @ ${r.host}:${r.port} - ${r.message}</div>`;
+            } else {
+              detailsHTML += `<div style="margin-bottom: 8px; color: #ef4444;">✗ ${r.email} @ ${r.host}:${r.port} - ${r.error}</div>`;
+            }
+          });
+          detailsHTML += '</div>';
+
+          document.getElementById('bulkSmtpTestResult').innerHTML += detailsHTML;
+        }
+
       } catch (error) {
         document.getElementById('bulkSmtpTestResult').innerHTML = '<span style="color: var(--danger-color);">✗ Test failed: ' + error.message + '</span>';
       }
