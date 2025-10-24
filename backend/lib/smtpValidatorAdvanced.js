@@ -45,9 +45,11 @@ class SMTPValidatorAdvanced {
       'mcafee'
     ];
 
-    // Connection timeout
-    this.CONNECTION_TIMEOUT = 10000;
-    this.SOCKET_TIMEOUT = 15000;
+    // Connection timeout (CRITICAL: Reduced to match Python script speed)
+    this.CONNECTION_TIMEOUT = 3000;   // 3s instead of 10s (Python uses fast timeouts)
+    this.SOCKET_TIMEOUT = 5000;        // 5s instead of 15s
+    this.DNS_TIMEOUT = 2000;           // 2s for DNS resolution
+    this.SMTP_RESPONSE_TIMEOUT = 3000; // 3s for SMTP responses
   }
 
   /**
@@ -472,7 +474,7 @@ class SMTPValidatorAdvanced {
       const timeout = setTimeout(() => {
         socket.removeListener('data', dataHandler);
         reject(new Error('Response timeout'));
-      }, 10000);
+      }, this.SMTP_RESPONSE_TIMEOUT); // 3s instead of 10s
 
       const dataHandler = (chunk) => {
         data += chunk.toString();
@@ -501,35 +503,30 @@ class SMTPValidatorAdvanced {
       return hostname;
     }
 
-    // Try random DNS server (like Python's rotate)
-    const dnsServer = this.DNS_SERVERS[Math.floor(Math.random() * this.DNS_SERVERS.length)];
+    // Create timeout promise that rejects after DNS_TIMEOUT
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('DNS_TIMEOUT')), this.DNS_TIMEOUT);
+    });
 
     try {
-      // Use system DNS with custom settings
-      const resolver = new dns.Resolver();
-      resolver.setServers([dnsServer]);
-
-      // Prefer IPv6 (like Python)
-      try {
-        const addresses = await resolver.resolve6(hostname);
+      // Try to resolve with system DNS (fastest, no custom server setup)
+      // Using dns.promises directly is more reliable than Resolver
+      const resolvePromise = dns.resolve4(hostname).then(addresses => {
         if (addresses && addresses.length > 0) {
           return addresses[0];
         }
-      } catch (ipv6Error) {
-        // IPv6 not available, try IPv4
-      }
+        return null;
+      });
 
-      // Fallback to IPv4
-      const addresses = await resolver.resolve4(hostname);
-      if (addresses && addresses.length > 0) {
-        return addresses[0];
-      }
+      // Race between resolution and timeout
+      const result = await Promise.race([resolvePromise, timeoutPromise]);
+      return result;
 
     } catch (error) {
-      console.error(`DNS resolution failed for ${hostname}:`, error.message);
+      // Silent fail on timeout or DNS errors - just return null
+      // This allows fast fallback to next server
+      return null;
     }
-
-    return null;
   }
 
   /**
@@ -603,7 +600,9 @@ class SMTPValidatorAdvanced {
       // MX lookup failed, continue with other methods
     }
 
-    // Try each domain/port combination
+    // Try domain/port combinations in PARALLEL for speed (like Python)
+    // Build all combinations first
+    const checks = [];
     for (const testDomain of domainsToTry) {
       // Skip dangerous domains
       if (this.isDangerousDomain(testDomain)) {
@@ -611,32 +610,41 @@ class SMTPValidatorAdvanced {
       }
 
       for (const port of this.SMTP_PORTS) {
-        try {
-          // Quick connectivity check
-          const ip = await this.resolveWithCustomDNS(testDomain);
-          if (ip) {
-            const isListening = await this.isPortListening(ip, port);
-            if (isListening) {
-              result.servers.push({
-                host: testDomain,
-                port: port,
-                ip: ip
-              });
-
-              // Found at least one working server
-              if (result.servers.length >= 3) {
-                break;
-              }
-            }
-          }
-        } catch (error) {
-          // Try next combination
-          continue;
-        }
+        checks.push({ domain: testDomain, port: port });
       }
+    }
 
-      if (result.servers.length >= 3) {
-        break;
+    // Run all checks in parallel with Promise.allSettled
+    const checkPromises = checks.map(async ({ domain, port }) => {
+      try {
+        const ip = await this.resolveWithCustomDNS(domain);
+        if (!ip) return null;
+
+        const isListening = await this.isPortListening(ip, port);
+        if (!isListening) return null;
+
+        return {
+          host: domain,
+          port: port,
+          ip: ip
+        };
+      } catch (error) {
+        return null;
+      }
+    });
+
+    // Wait for all checks (with overall timeout)
+    const checkResults = await Promise.allSettled(checkPromises);
+
+    // Collect working servers
+    for (const promiseResult of checkResults) {
+      if (promiseResult.status === 'fulfilled' && promiseResult.value) {
+        result.servers.push(promiseResult.value);
+
+        // Stop after finding 3 working servers
+        if (result.servers.length >= 3) {
+          break;
+        }
       }
     }
 
@@ -773,10 +781,11 @@ class SMTPValidatorAdvanced {
     return new Promise((resolve) => {
       const socket = new net.Socket();
 
+      // Aggressive 1.5s timeout for fast discovery
       const timeout = setTimeout(() => {
         socket.destroy();
         resolve(false);
-      }, 3000);
+      }, 1500);
 
       socket.connect(port, host, () => {
         clearTimeout(timeout);
