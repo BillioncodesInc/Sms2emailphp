@@ -207,45 +207,85 @@ class SMTPValidatorAdvanced {
   createSocketConnection(host, port) {
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
-        if (socket) socket.destroy();
+        if (socket) {
+          socket.destroy();
+        }
         reject(new Error('Connection timeout'));
       }, this.CONNECTION_TIMEOUT);
 
       let socket;
+      let isResolved = false;
 
-      // Port 465 requires immediate TLS (SMTPS)
-      if (port === 465) {
-        socket = tls.connect({
-          host: host,
-          port: port,
-          rejectUnauthorized: false, // Accept self-signed certs
-          timeout: this.SOCKET_TIMEOUT
-        }, () => {
-          clearTimeout(timeout);
-          resolve(socket);
-        });
-      } else {
-        // Plain TCP socket for STARTTLS (ports 587, 25, 2525)
-        socket = new net.Socket();
-        socket.setTimeout(this.SOCKET_TIMEOUT);
+      const cleanupAndReject = (error) => {
+        if (isResolved) return; // Prevent double rejection
+        isResolved = true;
+        clearTimeout(timeout);
 
-        socket.connect(port, host, () => {
-          clearTimeout(timeout);
-          resolve(socket);
-        });
+        if (socket) {
+          try {
+            socket.destroy();
+          } catch (e) {
+            // Ignore cleanup errors
+          }
+        }
+
+        // Categorize SSL/TLS errors for better feedback
+        let errorMessage = error.message || 'Unknown error';
+        if (errorMessage.includes('wrong version number') ||
+            errorMessage.includes('SSL routines') ||
+            errorMessage.includes('ssl3_get_record')) {
+          errorMessage = `SSL/TLS protocol error on port ${port}. Server may not support this encryption method.`;
+        } else if (errorMessage.includes('ECONNREFUSED')) {
+          errorMessage = `Connection refused on port ${port}`;
+        } else if (errorMessage.includes('ETIMEDOUT')) {
+          errorMessage = `Connection timed out on port ${port}`;
+        } else if (errorMessage.includes('ENOTFOUND')) {
+          errorMessage = `Host not found: ${host}`;
+        }
+
+        reject(new Error(errorMessage));
+      };
+
+      try {
+        // Port 465 requires immediate TLS (SMTPS)
+        if (port === 465) {
+          socket = tls.connect({
+            host: host,
+            port: port,
+            rejectUnauthorized: false, // Accept self-signed certs
+            timeout: this.SOCKET_TIMEOUT,
+            minVersion: 'TLSv1', // Support older TLS versions
+            maxVersion: 'TLSv1.3'
+          }, () => {
+            if (isResolved) return;
+            isResolved = true;
+            clearTimeout(timeout);
+            resolve(socket);
+          });
+        } else {
+          // Plain TCP socket for STARTTLS (ports 587, 25, 2525)
+          socket = new net.Socket();
+          socket.setTimeout(this.SOCKET_TIMEOUT);
+
+          socket.connect(port, host, () => {
+            if (isResolved) return;
+            isResolved = true;
+            clearTimeout(timeout);
+            resolve(socket);
+          });
+        }
+
+        socket.on('error', cleanupAndReject);
+        socket.on('timeout', () => cleanupAndReject(new Error('Socket timeout')));
+
+        // Handle TLS-specific errors
+        if (port === 465 && socket.on) {
+          socket.on('tlsClientError', cleanupAndReject);
+        }
+
+      } catch (error) {
+        cleanupAndReject(error);
       }
-
-      socket.on('error', (err) => {
-        clearTimeout(timeout);
-        socket.destroy();
-        reject(err);
-      });
-
-      socket.on('timeout', () => {
-        clearTimeout(timeout);
-        socket.destroy();
-        reject(new Error('Socket timeout'));
-      });
     });
   }
 
@@ -348,7 +388,19 @@ class SMTPValidatorAdvanced {
       }
 
     } catch (error) {
-      result.error = error.message;
+      // Categorize errors for better user feedback
+      let errorMessage = error.message || 'Unknown error';
+
+      if (errorMessage.includes('wrong version number') ||
+          errorMessage.includes('SSL routines')) {
+        errorMessage = 'SSL/TLS protocol mismatch - skipping this port';
+      } else if (errorMessage.includes('ECONNRESET')) {
+        errorMessage = 'Connection reset by server';
+      } else if (errorMessage.includes('EPIPE')) {
+        errorMessage = 'Broken pipe - connection closed unexpectedly';
+      }
+
+      result.error = errorMessage;
     }
 
     return result;
