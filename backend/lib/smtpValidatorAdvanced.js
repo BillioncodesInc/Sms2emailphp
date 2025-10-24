@@ -198,25 +198,42 @@ class SMTPValidatorAdvanced {
 
   /**
    * Create raw socket connection
+   * For port 465 (SMTPS), creates TLS socket directly
+   * For other ports, creates plain TCP socket
    * @param {string} host - Hostname or IP
    * @param {number} port - Port number
    * @returns {Promise<Socket>} Connected socket
    */
   createSocketConnection(host, port) {
     return new Promise((resolve, reject) => {
-      const socket = new net.Socket();
-
       const timeout = setTimeout(() => {
-        socket.destroy();
+        if (socket) socket.destroy();
         reject(new Error('Connection timeout'));
       }, this.CONNECTION_TIMEOUT);
 
-      socket.setTimeout(this.SOCKET_TIMEOUT);
+      let socket;
 
-      socket.connect(port, host, () => {
-        clearTimeout(timeout);
-        resolve(socket);
-      });
+      // Port 465 requires immediate TLS (SMTPS)
+      if (port === 465) {
+        socket = tls.connect({
+          host: host,
+          port: port,
+          rejectUnauthorized: false, // Accept self-signed certs
+          timeout: this.SOCKET_TIMEOUT
+        }, () => {
+          clearTimeout(timeout);
+          resolve(socket);
+        });
+      } else {
+        // Plain TCP socket for STARTTLS (ports 587, 25, 2525)
+        socket = new net.Socket();
+        socket.setTimeout(this.SOCKET_TIMEOUT);
+
+        socket.connect(port, host, () => {
+          clearTimeout(timeout);
+          resolve(socket);
+        });
+      }
 
       socket.on('error', (err) => {
         clearTimeout(timeout);
@@ -248,15 +265,9 @@ class SMTPValidatorAdvanced {
     };
 
     try {
-      // Wrap socket in TLS if needed (port 465 = implicit SSL)
+      // Socket is already TLS for port 465 (created in createSocketConnection)
+      // For other ports, socket is plain TCP and may need STARTTLS
       let activeSocket = socket;
-
-      if (port === 465) {
-        activeSocket = tls.connect({
-          socket: socket,
-          rejectUnauthorized: false
-        });
-      }
 
       // Wait for server banner (220)
       const banner = await this.readSMTPResponse(activeSocket);
