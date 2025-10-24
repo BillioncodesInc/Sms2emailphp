@@ -62,42 +62,5 @@
     },
     "createdAt": "2025-10-15T21:41:25.479Z",
     "updatedAt": "2025-10-15T22:17:26.020Z"
-  },
-  {
-    "id": "d1f6d1789fa347f049d62e67ae4fa75d",
-    "name": "Test Email Campaign",
-    "mode": "email",
-    "sender": {
-      "name": "Test Sender",
-      "email": "test@example.com"
-    },
-    "content": {
-      "subject": "Test Subject Line",
-      "message": "Hello {{firstname}}, this is a test message!",
-      "link": "https://example.com"
-    },
-    "recipients": [
-      "user1@test.com",
-      "user2@test.com",
-      "user3@test.com"
-    ],
-    "attachments": [],
-    "options": {
-      "useProxy": false,
-      "linkProtection": {
-        "enabled": true,
-        "level": "high"
-      },
-      "delay": 500
-    },
-    "status": "draft",
-    "stats": {
-      "total": 0,
-      "sent": 0,
-      "failed": 0,
-      "successRate": 0
-    },
-    "createdAt": "2025-10-16T13:28:43.119Z",
-    "updatedAt": "2025-10-16T13:28:43.119Z"
   }
 ]

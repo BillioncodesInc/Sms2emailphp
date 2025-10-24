@@ -2,10 +2,42 @@ const express = require('express');
 const router = express.Router();
 const fs = require('fs').promises;
 const path = require('path');
+const { v4: uuidv4 } = require('uuid');
+const axios = require('axios');
 
 // Data directory
 const DATA_DIR = path.join(__dirname, '../data');
 const REDIRECTOR_LISTS_FILE = path.join(DATA_DIR, 'redirector-lists.json');
+
+// Active processing sessions for WebSocket updates
+const activeSessions = new Map();
+
+// WebSocket connections (will be set by app.js)
+let wsConnections = null;
+
+// Set WebSocket connections from app.js
+function setWebSocketConnections(wss) {
+  wsConnections = wss;
+}
+
+// Emit WebSocket update for a session
+function emitWebSocketUpdate(sessionId, data) {
+  if (!wsConnections) return;
+
+  // Send to all clients listening to this session
+  wsConnections.clients.forEach((client) => {
+    if (client.readyState === 1) { // WebSocket.OPEN = 1
+      try {
+        client.send(JSON.stringify({
+          sessionId,
+          ...data
+        }));
+      } catch (err) {
+        console.error('WebSocket send error:', err);
+      }
+    }
+  });
+}
 
 // Ensure data directory exists
 async function ensureDataDir() {
@@ -116,6 +148,28 @@ function embedTargetLink(redirectors, targetLink) {
   });
 }
 
+// Test if URL is accessible (HEAD request with 3 second timeout)
+async function testUrl(url) {
+  try {
+    const response = await axios.head(url, {
+      timeout: 3000,
+      maxRedirects: 5,
+      validateStatus: (status) => status < 500 // Accept any non-server-error status
+    });
+    return {
+      accessible: true,
+      status: response.status,
+      error: null
+    };
+  } catch (error) {
+    return {
+      accessible: false,
+      status: null,
+      error: error.message
+    };
+  }
+}
+
 // Process raw redirector text
 function processRedirectors(rawText, targetLink) {
   // Step 1: Extract URLs with redirect parameters
@@ -222,6 +276,254 @@ router.post('/process', async (req, res) => {
     });
   } catch (error) {
     console.error('❌ Error processing redirectors:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Start streaming processing with WebSocket updates and URL testing
+router.post('/process/stream', async (req, res) => {
+  try {
+    const { rawText, targetLink, testUrls = true } = req.body;
+
+    if (!rawText || !targetLink) {
+      return res.status(400).json({
+        success: false,
+        error: 'rawText and targetLink are required'
+      });
+    }
+
+    // Create session ID
+    const sessionId = uuidv4();
+
+    // Initialize session state
+    const sessionState = {
+      sessionId,
+      status: 'processing',
+      total: 0,
+      processed: 0,
+      valid: 0,
+      invalid: 0,
+      startTime: Date.now(),
+      results: []
+    };
+
+    activeSessions.set(sessionId, sessionState);
+
+    // Return session ID immediately
+    res.json({
+      success: true,
+      sessionId,
+      message: 'Processing started. Connect to WebSocket for real-time updates.'
+    });
+
+    // Start processing asynchronously
+    processRedirectorsStreaming(sessionId, rawText, targetLink, testUrls);
+
+  } catch (error) {
+    console.error('❌ Error starting streaming process:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Streaming processing function with WebSocket updates
+async function processRedirectorsStreaming(sessionId, rawText, targetLink, testUrls) {
+  const sessionState = activeSessions.get(sessionId);
+  if (!sessionState) return;
+
+  try {
+    // Step 1: Extract URLs
+    emitWebSocketUpdate(sessionId, {
+      type: 'phase',
+      phase: 'extracting',
+      message: 'Extracting redirect URLs...'
+    });
+
+    const extracted = extractRedirectUrls(rawText);
+    sessionState.total = extracted.length;
+
+    emitWebSocketUpdate(sessionId, {
+      type: 'phase',
+      phase: 'extracted',
+      message: `Extracted ${extracted.length} redirect URLs`,
+      count: extracted.length
+    });
+
+    // Step 2: Prepare redirectors (with placeholder)
+    emitWebSocketUpdate(sessionId, {
+      type: 'phase',
+      phase: 'preparing',
+      message: 'Preparing redirectors...'
+    });
+
+    const prepared = prepareRedirectors(extracted);
+
+    // Step 3: Remove duplicates
+    emitWebSocketUpdate(sessionId, {
+      type: 'phase',
+      phase: 'deduplicating',
+      message: 'Removing duplicates...'
+    });
+
+    const unique = removeDuplicates(prepared);
+
+    emitWebSocketUpdate(sessionId, {
+      type: 'phase',
+      phase: 'deduplicated',
+      message: `Removed ${prepared.length - unique.length} duplicates`,
+      count: unique.length
+    });
+
+    // Step 4: Embed target link
+    emitWebSocketUpdate(sessionId, {
+      type: 'phase',
+      phase: 'embedding',
+      message: 'Embedding target link...'
+    });
+
+    const final = embedTargetLink(unique, targetLink);
+
+    // Step 5: Test URLs (if requested)
+    if (testUrls) {
+      emitWebSocketUpdate(sessionId, {
+        type: 'phase',
+        phase: 'testing',
+        message: `Testing ${final.length} URLs...`,
+        total: final.length
+      });
+
+      for (let i = 0; i < final.length; i++) {
+        const url = final[i];
+
+        // Test URL
+        const testResult = await testUrl(url);
+
+        sessionState.processed++;
+        if (testResult.accessible) {
+          sessionState.valid++;
+        } else {
+          sessionState.invalid++;
+        }
+
+        sessionState.results.push({
+          url,
+          accessible: testResult.accessible,
+          status: testResult.status,
+          error: testResult.error
+        });
+
+        // Emit progress update every URL
+        emitWebSocketUpdate(sessionId, {
+          type: 'progress',
+          current: sessionState.processed,
+          total: sessionState.total,
+          valid: sessionState.valid,
+          invalid: sessionState.invalid,
+          url,
+          accessible: testResult.accessible,
+          status: testResult.status,
+          percent: Math.round((sessionState.processed / sessionState.total) * 100)
+        });
+      }
+    } else {
+      // No testing, just mark all as processed
+      sessionState.processed = final.length;
+      sessionState.results = final.map(url => ({
+        url,
+        accessible: null,
+        status: null,
+        error: null
+      }));
+    }
+
+    // Mark as complete
+    sessionState.status = 'completed';
+    sessionState.endTime = Date.now();
+    sessionState.duration = sessionState.endTime - sessionState.startTime;
+
+    emitWebSocketUpdate(sessionId, {
+      type: 'complete',
+      message: 'Processing completed',
+      stats: {
+        total: sessionState.total,
+        processed: sessionState.processed,
+        valid: sessionState.valid,
+        invalid: sessionState.invalid,
+        duration: sessionState.duration
+      },
+      results: sessionState.results
+    });
+
+  } catch (error) {
+    console.error('❌ Error in streaming process:', error);
+    sessionState.status = 'failed';
+    sessionState.error = error.message;
+
+    emitWebSocketUpdate(sessionId, {
+      type: 'error',
+      message: error.message
+    });
+  }
+}
+
+// Get session status
+router.get('/process/stream/:sessionId', async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    const sessionState = activeSessions.get(sessionId);
+
+    if (!sessionState) {
+      return res.status(404).json({
+        success: false,
+        error: 'Session not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      session: {
+        sessionId: sessionState.sessionId,
+        status: sessionState.status,
+        total: sessionState.total,
+        processed: sessionState.processed,
+        valid: sessionState.valid,
+        invalid: sessionState.invalid,
+        duration: sessionState.endTime ? sessionState.duration : Date.now() - sessionState.startTime
+      }
+    });
+  } catch (error) {
+    console.error('❌ Error getting session status:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Get session results
+router.get('/process/stream/:sessionId/results', async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    const sessionState = activeSessions.get(sessionId);
+
+    if (!sessionState) {
+      return res.status(404).json({
+        success: false,
+        error: 'Session not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      results: sessionState.results
+    });
+  } catch (error) {
+    console.error('❌ Error getting session results:', error);
     res.status(500).json({
       success: false,
       error: error.message
@@ -460,4 +762,4 @@ router.get('/lists/:name/random', async (req, res) => {
   }
 });
 
-module.exports = router;
+module.exports = { router, setWebSocketConnections };

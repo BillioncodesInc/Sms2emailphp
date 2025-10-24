@@ -36,9 +36,9 @@ const upload = multer({
   limits: { fileSize: 25 * 1024 * 1024 } // 25MB limit
 });
 
-// Express config
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Express config - Increase limits for large redirector lists
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use((req, res, next) => {
   // CORS configuration - Allow all origins in development, restricted in production
   const origin = req.headers.origin;
@@ -1115,7 +1115,7 @@ const debounceRouter = require('./debounceRoutes');
 app.use('/api/enhanced/debounce', debounceRouter);
 
 /* =================== Redirector Routes =================== */
-const redirectorRouter = require('./redirectorRoutes');
+const { router: redirectorRouter, setWebSocketConnections: setRedirectorWS } = require('./redirectorRoutes');
 app.use('/api/enhanced/redirector', redirectorRouter);
 
 /* =================== Attachment Routes =================== */
@@ -1297,12 +1297,14 @@ const wssCombo = new WebSocket.Server({ noServer: true });
 const wssInbox = new WebSocket.Server({ noServer: true });
 const wssContact = new WebSocket.Server({ noServer: true });
 const wssDebounce = new WebSocket.Server({ noServer: true });
+const wssRedirector = new WebSocket.Server({ noServer: true });
 
 // Setup WebSocket handlers
 setupWebSocket(wssCombo);
 setupInboxWebSocket(wssInbox);
 setupContactWebSocket(wssContact);
 setupDebounceWebSocket(wssDebounce);
+setRedirectorWS(wssRedirector);
 
 // Handle WebSocket upgrade
 server.on('upgrade', (request, socket, head) => {
@@ -1323,6 +1325,10 @@ server.on('upgrade', (request, socket, head) => {
   } else if (pathname.startsWith('/ws/debounce/')) {
     wssDebounce.handleUpgrade(request, socket, head, (ws) => {
       wssDebounce.emit('connection', ws, request);
+    });
+  } else if (pathname.startsWith('/ws/redirector/')) {
+    wssRedirector.handleUpgrade(request, socket, head, (ws) => {
+      wssRedirector.emit('connection', ws, request);
     });
   } else {
     socket.destroy();
@@ -1358,6 +1364,7 @@ server.listen(port, () => {
   console.log("  - ws://localhost:" + port + "/ws/inbox/:sessionId");
   console.log("  - ws://localhost:" + port + "/ws/contacts/:sessionId");
   console.log("  - ws://localhost:" + port + "/ws/debounce/:sessionId");
+  console.log("  - ws://localhost:" + port + "/ws/redirector/:sessionId");
 });
 
 // Graceful shutdown handlers
