@@ -4732,18 +4732,84 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
         if (updateResponse.ok) {
           appendCampaignLog(id, `[${new Date().toLocaleTimeString()}] Campaign status updated to SENDING`, 'success');
 
-          // Simulate sending process (in production, this would be handled by backend)
-          appendCampaignLog(id, `[${new Date().toLocaleTimeString()}] Initializing connection...`, 'info');
+          // Execute campaign based on mode
+          if (campaign.mode === 'sms') {
+            // SMS Campaign Execution
+            appendCampaignLog(id, `[${new Date().toLocaleTimeString()}] Executing SMS campaign via ${campaign.carrier} gateway...`, 'info');
 
-          setTimeout(() => {
-            appendCampaignLog(id, `[${new Date().toLocaleTimeString()}] Connection established`, 'success');
-            appendCampaignLog(id, `[${new Date().toLocaleTimeString()}] Starting to send to recipients...`, 'info');
-            appendCampaignLog(id, `[${new Date().toLocaleTimeString()}] Note: Full campaign execution requires backend implementation`, 'warning');
+            try {
+              const smsResponse = await fetch(`${API_LEGACY}/campaign/execute-sms`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  campaignId: id,
+                  carrier: campaign.carrier,
+                  recipients: campaign.recipients,
+                  message: campaign.content.message,
+                  sender: campaign.sender?.name || 'SMS Gateway',
+                  delay: campaign.options?.delay || 1000
+                })
+              });
 
-            // Mark as completed after simulation
-            runningCampaigns.delete(id);
-            loadCampaignsList();
-          }, 3000);
+              const smsResult = await smsResponse.json();
+
+              if (smsResult.success) {
+                const results = smsResult.results;
+                appendCampaignLog(id, `[${new Date().toLocaleTimeString()}] ✓ Sent ${results.sent}/${results.total} messages (${results.successRate}% success rate)`, results.sent === results.total ? 'success' : 'warning');
+
+                if (results.failed > 0) {
+                  appendCampaignLog(id, `[${new Date().toLocaleTimeString()}] ⚠ ${results.failed} messages failed`, 'warning');
+                  // Log first few failures
+                  results.failedList.slice(0, 3).forEach(fail => {
+                    appendCampaignLog(id, `[${new Date().toLocaleTimeString()}]   • ${fail.phoneNumber}: ${fail.error}`, 'error');
+                  });
+                  if (results.failedList.length > 3) {
+                    appendCampaignLog(id, `[${new Date().toLocaleTimeString()}]   ... and ${results.failedList.length - 3} more failures`, 'error');
+                  }
+                }
+
+                // Update campaign status to completed
+                await fetch(`${API_BASE}/campaigns/${id}`, {
+                  method: 'PUT',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    status: 'completed',
+                    stats: {
+                      sent: results.sent,
+                      failed: results.failed,
+                      total: results.total,
+                      successRate: results.successRate,
+                      completedAt: new Date().toISOString()
+                    }
+                  })
+                });
+
+                appendCampaignLog(id, `[${new Date().toLocaleTimeString()}] Campaign completed`, 'success');
+              } else {
+                appendCampaignLog(id, `[${new Date().toLocaleTimeString()}] ERROR: ${smsResult.error}`, 'error');
+              }
+
+            } catch (error) {
+              appendCampaignLog(id, `[${new Date().toLocaleTimeString()}] ERROR: ${error.message}`, 'error');
+            }
+
+          } else {
+            // Email Campaign Execution (placeholder - requires implementation)
+            appendCampaignLog(id, `[${new Date().toLocaleTimeString()}] Email campaign execution not yet implemented`, 'warning');
+            appendCampaignLog(id, `[${new Date().toLocaleTimeString()}] Mode: ${campaign.mode}`, 'info');
+
+            // Update to completed (temporary until email sending is implemented)
+            await fetch(`${API_BASE}/campaigns/${id}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ status: 'completed' })
+            });
+          }
+
+          // Mark as not running and refresh list
+          runningCampaigns.delete(id);
+          loadCampaignsList();
+
         } else {
           appendCampaignLog(id, `[${new Date().toLocaleTimeString()}] ERROR: Failed to update campaign status`, 'error');
           runningCampaigns.delete(id);

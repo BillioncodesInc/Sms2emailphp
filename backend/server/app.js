@@ -1409,6 +1409,112 @@ server.on('upgrade', (request, socket, head) => {
   }
 });
 
+/**
+ * Execute SMS Campaign
+ * POST /api/campaign/execute-sms
+ * Body: { campaignId, carrier, recipients, message, sender, delay }
+ */
+app.post("/api/campaign/execute-sms", async (req, res) => {
+  const { campaignId, carrier, recipients, message, sender, delay } = req.body;
+
+  // Validate required fields
+  if (!campaignId || !carrier || !recipients || !message) {
+    return res.status(400).json({
+      success: false,
+      error: "Missing required fields: campaignId, carrier, recipients, message"
+    });
+  }
+
+  if (!Array.isArray(recipients) || recipients.length === 0) {
+    return res.status(400).json({
+      success: false,
+      error: "Recipients must be a non-empty array"
+    });
+  }
+
+  // Validate carrier exists
+  const carrierKey = carrier.toLowerCase();
+  if (!carriers[carrierKey]) {
+    return res.status(400).json({
+      success: false,
+      error: `Carrier "${carrier}" not supported. POST to /api/carriers to get supported carriers.`
+    });
+  }
+
+  console.log(`[SMS Campaign] Starting campaign ${campaignId} with ${recipients.length} recipients via ${carrier}`);
+
+  const results = {
+    success: [],
+    failed: [],
+    total: recipients.length
+  };
+
+  const sendDelay = delay || 1000; // Default 1 second between sends
+
+  // Send SMS messages sequentially
+  for (let i = 0; i < recipients.length; i++) {
+    const phoneNumber = recipients[i].toString().replace(/\D/g, ''); // Remove non-digits
+
+    await new Promise((resolve) => {
+      text.send(phoneNumber, message, carrierKey, null, sender, null, (err) => {
+        if (err) {
+          console.log(`[SMS Campaign] Failed to send to ${phoneNumber}: ${err.message || err}`);
+          results.failed.push({
+            phoneNumber,
+            error: err.message || String(err)
+          });
+        } else {
+          console.log(`[SMS Campaign] Successfully sent to ${phoneNumber}`);
+          results.success.push({
+            phoneNumber
+          });
+        }
+        resolve();
+      });
+    });
+
+    // Apply delay between sends (except after last one)
+    if (i < recipients.length - 1 && sendDelay > 0) {
+      await new Promise(resolve => setTimeout(resolve, sendDelay));
+    }
+  }
+
+  // Calculate success rate
+  const successRate = ((results.success.length / results.total) * 100).toFixed(2);
+
+  console.log(`[SMS Campaign] Completed ${campaignId}: ${results.success.length}/${results.total} sent (${successRate}%)`);
+
+  res.json({
+    success: true,
+    results: {
+      sent: results.success.length,
+      failed: results.failed.length,
+      total: results.total,
+      successRate: parseFloat(successRate),
+      successList: results.success,
+      failedList: results.failed
+    }
+  });
+});
+
+/**
+ * Get list of supported SMS carriers
+ * GET /api/carriers
+ */
+app.get("/api/carriers", (req, res) => {
+  const carrierList = Object.keys(carriers).map(key => ({
+    key: key,
+    name: key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1'),
+    gateway: carriers[key][0]
+  }));
+
+  res.json({
+    success: true,
+    carriers: carrierList,
+    count: carrierList.length
+  });
+});
+
 // Load proxies from disk on startup
 (function loadProxiesOnStartup() {
   const proxyStorage = require('../lib/proxyStorage');
