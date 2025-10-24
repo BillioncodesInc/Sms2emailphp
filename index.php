@@ -1643,6 +1643,12 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
                   Skip blacklist check (faster)
                 </label>
               </div>
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="useProxies">
+                <label class="form-check-label" for="useProxies">
+                  Use configured proxies (protects IP)
+                </label>
+              </div>
             </div>
           </div>
 
@@ -6498,6 +6504,7 @@ Username: ${detectedConfig.auth.username}`;
         const format = document.getElementById('comboFormat').value;
         const threads = parseInt(document.getElementById('comboThreads').value);
         const skipBlacklist = document.getElementById('skipBlacklist').checked;
+        const useProxies = document.getElementById('useProxies').checked;
 
         // Show progress card
         document.getElementById('progressCard').style.display = 'block';
@@ -6544,7 +6551,10 @@ Username: ${detectedConfig.auth.username}`;
             body: JSON.stringify({
               combos: parseResult.combos,
               threads,
-              options: { skipBlacklist }
+              options: {
+                skipBlacklist,
+                useProxy: useProxies
+              }
             })
           });
 
