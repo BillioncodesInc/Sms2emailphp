@@ -3288,8 +3288,8 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
       return emailRegex.test(email);
     }
 
-    // Validate pass|email format
-    function validateBulkSMTP(lines) {
+    // Validate pass|email or host|port|email|password format
+    function validateBulkSMTP(lines, service) {
       const results = [];
       let hasErrors = false;
       const errors = [];
@@ -3298,42 +3298,84 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
         return { hasErrors: true, results: [], errors: ['Bulk list is empty'] };
       }
 
+      const isCustomSMTP = !service || service === 'none';
+
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
         const parts = line.split('|');
 
-        // Check format
-        if (parts.length !== 2) {
-          hasErrors = true;
-          results.push(line + ' - error (invalid format)');
-          errors.push(`Line ${i + 1}: Must be in format "password|email"`);
-          continue;
-        }
+        if (isCustomSMTP) {
+          // Custom SMTP: host|port|email|password
+          if (parts.length !== 4) {
+            hasErrors = true;
+            results.push(line + ' - error (invalid format)');
+            errors.push(`Line ${i + 1}: Must be in format "host|port|email|password"`);
+            continue;
+          }
 
-        const password = parts[0].trim();
-        const email = parts[1].trim();
+          const [host, port, email, password] = parts.map(p => p.trim());
 
-        // Check password
-        if (!password) {
-          hasErrors = true;
-          results.push(line + ' - error (empty password)');
-          errors.push(`Line ${i + 1}: Password cannot be empty`);
-          continue;
-        }
+          if (!host) {
+            hasErrors = true;
+            results.push(line + ' - error (empty host)');
+            errors.push(`Line ${i + 1}: Host cannot be empty`);
+            continue;
+          }
 
-        // Check email
-        if (!email) {
-          hasErrors = true;
-          results.push(line + ' - error (empty email)');
-          errors.push(`Line ${i + 1}: Email cannot be empty`);
-          continue;
-        }
+          const portNum = parseInt(port);
+          if (isNaN(portNum) || portNum < 1 || portNum > 65535) {
+            hasErrors = true;
+            results.push(line + ' - error (invalid port)');
+            errors.push(`Line ${i + 1}: Port must be between 1-65535`);
+            continue;
+          }
 
-        if (!isValidEmail(email)) {
-          hasErrors = true;
-          results.push(line + ' - error (invalid email)');
-          errors.push(`Line ${i + 1}: Invalid email format`);
-          continue;
+          if (!email || !isValidEmail(email)) {
+            hasErrors = true;
+            results.push(line + ' - error (invalid email)');
+            errors.push(`Line ${i + 1}: Invalid email format`);
+            continue;
+          }
+
+          if (!password) {
+            hasErrors = true;
+            results.push(line + ' - error (empty password)');
+            errors.push(`Line ${i + 1}: Password cannot be empty`);
+            continue;
+          }
+
+        } else {
+          // Service-based SMTP: password|email
+          if (parts.length !== 2) {
+            hasErrors = true;
+            results.push(line + ' - error (invalid format)');
+            errors.push(`Line ${i + 1}: Must be in format "password|email"`);
+            continue;
+          }
+
+          const password = parts[0].trim();
+          const email = parts[1].trim();
+
+          if (!password) {
+            hasErrors = true;
+            results.push(line + ' - error (empty password)');
+            errors.push(`Line ${i + 1}: Password cannot be empty`);
+            continue;
+          }
+
+          if (!email) {
+            hasErrors = true;
+            results.push(line + ' - error (empty email)');
+            errors.push(`Line ${i + 1}: Email cannot be empty`);
+            continue;
+          }
+
+          if (!isValidEmail(email)) {
+            hasErrors = true;
+            results.push(line + ' - error (invalid email)');
+            errors.push(`Line ${i + 1}: Invalid email format`);
+            continue;
+          }
         }
 
         results.push(line);
@@ -3886,7 +3928,7 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
         }
 
         const lines = bulkText.split('\n').filter(l => l.trim());
-        const validation = validateBulkSMTP(lines);
+        const validation = validateBulkSMTP(lines, service);
 
         if (validation.hasErrors) {
           document.getElementById('bulkSmtpList').value = validation.results.join('\n');
