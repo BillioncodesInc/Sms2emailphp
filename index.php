@@ -670,6 +670,29 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
       }
     }
 
+    // Check SMTP configuration status
+    async function checkSmtpStatus() {
+      try {
+        const response = await fetch(`${API_LEGACY}/smtp/config`);
+        const data = await response.json();
+
+        const hasSmtp = data.success && data.configured;
+        const count = hasSmtp ? data.count : 0;
+        const type = data.type || null;
+        const service = data.service || '';
+
+        return {
+          configured: hasSmtp,
+          count: count,
+          type: type,
+          service: service
+        };
+      } catch (error) {
+        console.error('Error checking SMTP status:', error);
+        return { configured: false, count: 0, type: null, service: '' };
+      }
+    }
+
     // Update proxy status notices in UI
     async function updateProxyNotices() {
       const status = await checkProxyStatus();
@@ -696,6 +719,96 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
           }
         }
       });
+    }
+
+    // Track active polling intervals
+    let proxyConfigPollingInterval = null;
+
+    // Start automatic polling for proxy config updates
+    function startProxyConfigPolling() {
+      // Clear any existing interval
+      if (proxyConfigPollingInterval) {
+        clearInterval(proxyConfigPollingInterval);
+      }
+
+      // Update immediately
+      updateProxyNotices();
+
+      // Poll every 10 seconds
+      proxyConfigPollingInterval = setInterval(() => {
+        updateProxyNotices();
+      }, 10000);
+
+      console.log('✅ Started proxy config polling (every 10s)');
+    }
+
+    // Stop proxy config polling
+    function stopProxyConfigPolling() {
+      if (proxyConfigPollingInterval) {
+        clearInterval(proxyConfigPollingInterval);
+        proxyConfigPollingInterval = null;
+        console.log('⏹️ Stopped proxy config polling');
+      }
+    }
+
+    // Update SMTP status notices in UI
+    async function updateSmtpNotices() {
+      const status = await checkSmtpStatus();
+
+      const sections = [
+        { noticeId: 'campaignSmtpNotice', statusId: 'campaignSmtpStatus', name: 'Campaign' }
+      ];
+
+      sections.forEach(section => {
+        const noticeEl = document.getElementById(section.noticeId);
+        const statusEl = document.getElementById(section.statusId);
+
+        if (noticeEl && statusEl) {
+          if (status.configured) {
+            noticeEl.style.background = 'rgba(16, 185, 129, 0.1)';
+            noticeEl.style.borderLeft = '4px solid #10b981';
+            if (status.type === 'single') {
+              statusEl.innerHTML = `<i class="fas fa-check-circle"></i> SMTP configured: ${status.service} (Single Mode)`;
+            } else if (status.type === 'bulk') {
+              statusEl.innerHTML = `<i class="fas fa-check-circle"></i> SMTP configured: ${status.count} accounts (Bulk Mode)`;
+            }
+          } else {
+            noticeEl.style.background = 'rgba(239, 68, 68, 0.1)';
+            noticeEl.style.borderLeft = '4px solid #ef4444';
+            statusEl.innerHTML = `<i class="fas fa-exclamation-triangle"></i> No SMTP configuration found. <a href="#" onclick="switchSection('smtp-profiles'); return false;" style="color: #667eea; text-decoration: underline;">Configure SMTP</a> to send emails.`;
+          }
+        }
+      });
+    }
+
+    // Track SMTP polling interval
+    let smtpConfigPollingInterval = null;
+
+    // Start automatic polling for SMTP config updates
+    function startSmtpConfigPolling() {
+      // Clear any existing interval
+      if (smtpConfigPollingInterval) {
+        clearInterval(smtpConfigPollingInterval);
+      }
+
+      // Update immediately
+      updateSmtpNotices();
+
+      // Poll every 10 seconds
+      smtpConfigPollingInterval = setInterval(() => {
+        updateSmtpNotices();
+      }, 10000);
+
+      console.log('✅ Started SMTP config polling (every 10s)');
+    }
+
+    // Stop SMTP config polling
+    function stopSmtpConfigPolling() {
+      if (smtpConfigPollingInterval) {
+        clearInterval(smtpConfigPollingInterval);
+        smtpConfigPollingInterval = null;
+        console.log('⏹️ Stopped SMTP config polling');
+      }
     }
   </script>
 </head>
@@ -860,6 +973,13 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
       <div class="page-header">
         <h2><i class="fas fa-plus-circle"></i> Create New Campaign</h2>
         <p class="subtitle">Step-by-step campaign creation wizard</p>
+      </div>
+
+      <!-- SMTP Configuration Notice -->
+      <div id="campaignSmtpNotice" class="info-notice" style="margin-bottom: 20px; padding: 15px; border-radius: 8px; border-left: 4px solid #ef4444;">
+        <div id="campaignSmtpStatus" style="color: #e5e7eb;">
+          <i class="fas fa-info-circle"></i> Checking SMTP configuration...
+        </div>
       </div>
 
       <!-- Progress Indicator -->
@@ -4774,15 +4894,29 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
       if (sectionName === 'campaigns') {
         loadCampaignsList();
         startCampaignsPolling();
+        stopProxyConfigPolling();
+        stopSmtpConfigPolling();
+      } else if (sectionName === 'new-campaign') {
+        // Start SMTP config polling for new campaign section
+        startSmtpConfigPolling();
+        stopProxyConfigPolling();
       } else if (sectionName === 'smtp-profiles') {
-        // Update proxy status when entering SMTP profiles section
-        updateProxyNotices();
+        // Start proxy config polling for SMTP profiles section
+        startProxyConfigPolling();
+        stopSmtpConfigPolling();
       } else if (sectionName === 'inbox-searcher' || sectionName === 'contact-extractor') {
-        // Update proxy status when entering these sections
-        updateProxyNotices();
+        // Start proxy config polling for these sections
+        startProxyConfigPolling();
+        stopSmtpConfigPolling();
       } else if (sectionName === 'proxies') {
-        // Load proxies list
+        // Load proxies list and start polling to reflect real-time changes
         loadProxiesList();
+        startProxyConfigPolling();
+        stopSmtpConfigPolling();
+      } else {
+        // Stop all polling when switching to other sections
+        stopProxyConfigPolling();
+        stopSmtpConfigPolling();
       }
     }
 

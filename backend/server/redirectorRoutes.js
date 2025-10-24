@@ -1,15 +1,32 @@
 const express = require('express');
 const router = express.Router();
 const fs = require('fs').promises;
+const fsSync = require('fs');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const axios = require('axios');
+const readline = require('readline');
+const multer = require('multer');
+const sessionStore = require('../lib/redirectorSessionStore');
 
 // Data directory
 const DATA_DIR = path.join(__dirname, '../data');
 const REDIRECTOR_LISTS_FILE = path.join(DATA_DIR, 'redirector-lists.json');
 
-// Active processing sessions for WebSocket updates
+// Multer for large file uploads (disk storage)
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => {
+      cb(null, path.join(DATA_DIR, 'uploads'));
+    },
+    filename: (req, file, cb) => {
+      cb(null, `redirector-${Date.now()}-${file.originalname}`);
+    }
+  }),
+  limits: { fileSize: 1024 * 1024 * 1024 } // 1GB
+});
+
+// Active processing sessions for WebSocket updates (backward compatibility)
 const activeSessions = new Map();
 
 // WebSocket connections (will be set by app.js)
@@ -334,6 +351,17 @@ router.post('/process/stream', async (req, res) => {
       return res.status(400).json({
         success: false,
         error: 'rawText and targetLink are required'
+      });
+    }
+
+    // Check file size and warn if too large
+    const textSizeInMB = Buffer.byteLength(rawText, 'utf8') / (1024 * 1024);
+    if (textSizeInMB > 50) {
+      return res.status(400).json({
+        success: false,
+        error: `Input text is too large (${Math.round(textSizeInMB)}MB). For files larger than 50MB, please use the command-line tool: node process_large_redirector.js <file_path> <target_url> <output_name> [batch_size]`,
+        sizeInMB: Math.round(textSizeInMB),
+        recommendation: 'Use the standalone processor: backend/process_large_redirector.js'
       });
     }
 

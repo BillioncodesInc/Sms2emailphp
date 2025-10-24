@@ -33,12 +33,25 @@ const app = express();
 // Configure multer for file uploads (memory storage)
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 25 * 1024 * 1024 } // 25MB limit
+  limits: { fileSize: 100 * 1024 * 1024 } // 100MB limit for file uploads
+});
+
+// Multer for large redirector file uploads (disk storage to avoid memory issues)
+const redirectorUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => {
+      cb(null, path.join(__dirname, '../data/uploads'));
+    },
+    filename: (req, file, cb) => {
+      cb(null, `redirector-${Date.now()}-${file.originalname}`);
+    }
+  }),
+  limits: { fileSize: 1024 * 1024 * 1024 } // 1GB limit for redirector files
 });
 
 // Express config - Increase limits for large redirector lists
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+app.use(express.json({ limit: '1gb' }));
+app.use(express.urlencoded({ extended: true, limit: '1gb' }));
 app.use((req, res, next) => {
   // CORS configuration - Allow all origins in development, restricted in production
   const origin = req.headers.origin;
@@ -272,6 +285,67 @@ app.get("/api/proxy/list", (req, res) => {
     proxies: proxiesWithIds,
     count: proxiesWithIds.length,
     protocol: proxyConfig.protocol
+  });
+});
+
+// Get proxy configuration status (for status checks in UI)
+app.get("/api/proxy/config", (req, res) => {
+  const proxyStorage = require('../lib/proxyStorage');
+  const proxyConfig = proxyStorage.loadConfig();
+
+  if (!proxyConfig || !proxyConfig.proxies || proxyConfig.proxies.length === 0) {
+    return res.json({
+      success: true,
+      configured: false,
+      proxies: [],
+      count: 0,
+      protocol: null
+    });
+  }
+
+  res.json({
+    success: true,
+    configured: true,
+    proxies: proxyConfig.proxies,
+    count: proxyConfig.proxies.length,
+    protocol: proxyConfig.protocol || 'socks5'
+  });
+});
+
+// Get SMTP configuration status (for status checks in UI)
+app.get("/api/smtp/config", (req, res) => {
+  const smtpStorage = require('../lib/smtpStorage');
+  const smtpConfig = smtpStorage.loadConfig();
+
+  if (!smtpConfig || !smtpConfig.data) {
+    return res.json({
+      success: true,
+      configured: false,
+      type: null,
+      count: 0,
+      service: null
+    });
+  }
+
+  // Count SMTP credentials based on type
+  let count = 0;
+  let service = null;
+
+  if (smtpConfig.type === 'single') {
+    count = 1;
+    service = smtpConfig.data.service || 'Custom';
+  } else if (smtpConfig.type === 'bulk' && smtpConfig.data.smtplist) {
+    count = smtpConfig.data.smtplist.length;
+    service = 'Bulk List';
+  }
+
+  res.json({
+    success: true,
+    configured: count > 0,
+    type: smtpConfig.type,
+    count: count,
+    service: service,
+    lastUpdated: smtpConfig.lastUpdated
   });
 });
 
