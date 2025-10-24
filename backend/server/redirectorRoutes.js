@@ -337,56 +337,29 @@ async function processRedirectorsStreaming(sessionId, rawText, targetLink, testU
   if (!sessionState) return;
 
   try {
-    // Step 1: Extract URLs
+    // Use the shared processRedirectors function for consistency
     emitWebSocketUpdate(sessionId, {
       type: 'phase',
-      phase: 'extracting',
-      message: 'Extracting redirect URLs...'
+      phase: 'processing',
+      message: 'Processing redirectors...'
     });
 
-    const extracted = extractRedirectUrls(rawText);
-    sessionState.total = extracted.length;
-
-    emitWebSocketUpdate(sessionId, {
-      type: 'phase',
-      phase: 'extracted',
-      message: `Extracted ${extracted.length} redirect URLs`,
-      count: extracted.length
-    });
-
-    // Step 2: Prepare redirectors (with placeholder)
-    emitWebSocketUpdate(sessionId, {
-      type: 'phase',
-      phase: 'preparing',
-      message: 'Preparing redirectors...'
-    });
-
-    const prepared = prepareRedirectors(extracted);
-
-    // Step 3: Remove duplicates
-    emitWebSocketUpdate(sessionId, {
-      type: 'phase',
-      phase: 'deduplicating',
-      message: 'Removing duplicates...'
-    });
-
-    const unique = removeDuplicates(prepared);
+    const result = processRedirectors(rawText, targetLink);
+    sessionState.total = result.final.length;
 
     emitWebSocketUpdate(sessionId, {
       type: 'phase',
-      phase: 'deduplicated',
-      message: `Removed ${prepared.length - unique.length} duplicates`,
-      count: unique.length
+      phase: 'processed',
+      message: `Processed ${result.final.length} redirectors`,
+      stats: {
+        extracted: result.extracted,
+        prepared: result.prepared,
+        unique: result.unique,
+        final: result.final.length
+      }
     });
 
-    // Step 4: Embed target link
-    emitWebSocketUpdate(sessionId, {
-      type: 'phase',
-      phase: 'embedding',
-      message: 'Embedding target link...'
-    });
-
-    const final = embedTargetLink(unique, targetLink);
+    const final = result.final;
 
     // Step 5: Test URLs (if requested)
     if (testUrls) {
