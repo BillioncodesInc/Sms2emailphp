@@ -4,7 +4,7 @@
  * Test SMTP validation with sample combos from mix_smtp.txt
  */
 
-const smtpValidatorAdvanced = require('./backend/lib/smtpValidatorAdvanced');
+const SMTPValidatorAdvanced = require('./backend/lib/smtpValidatorAdvanced');
 
 // Test combos from the list
 const testCombos = [
@@ -18,12 +18,15 @@ const testCombos = [
 async function testValidation() {
   console.log('🧪 Testing SMTP validation with sample combos...\n');
 
+  // Create validator instance without proxy
+  const validator = new SMTPValidatorAdvanced({ useProxy: false });
+
   for (const combo of testCombos) {
     console.log(`\n📧 Testing: ${combo.email}`);
     console.log('─'.repeat(80));
 
     try {
-      const result = await smtpValidatorAdvanced.validateCombo(combo.email, combo.password, {
+      const result = await validator.validateCombo(combo.email, combo.password, {
         timeout: 15000
       });
 

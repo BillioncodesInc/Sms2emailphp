@@ -10,7 +10,7 @@
 const smtpDatabase = require('./smtpDatabase');
 const smtpDiscovery = require('./smtpDiscovery');
 const smtpValidator = require('./smtpValidator');
-const smtpValidatorAdvanced = require('./smtpValidatorAdvanced'); // NEW: Advanced validator matching mailpass2smtp.py
+const SMTPValidatorAdvanced = require('./smtpValidatorAdvanced'); // NEW: Advanced validator class
 const blacklistChecker = require('./blacklistChecker');
 const EventEmitter = require('events');
 
@@ -22,6 +22,12 @@ class ComboProcessor extends EventEmitter {
     this.skipBlacklist = options.skipBlacklist || false;
     this.retryFailed = options.retryFailed || false;
     this.useAdvancedValidator = options.useAdvancedValidator !== false; // Default to true (use raw sockets like mailpass2smtp.py)
+    this.useProxy = options.useProxy || false; // Enable proxy rotation for IP protection
+
+    // Create validator instance with proxy configuration
+    this.validator = new SMTPValidatorAdvanced({
+      useProxy: this.useProxy
+    });
 
     this.sessionId = this.generateSessionId();
     this.isRunning = false;
@@ -88,7 +94,7 @@ class ComboProcessor extends EventEmitter {
       if (this.useAdvancedValidator) {
         this.emit('phase', { email, phase: 'advanced_validation', status: 'starting' });
 
-        const advancedResult = await smtpValidatorAdvanced.validateCombo(email, password, {
+        const advancedResult = await this.validator.validateCombo(email, password, {
           timeout: this.timeout
         });
 

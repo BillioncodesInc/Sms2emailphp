@@ -3,7 +3,7 @@
  * Verifies that port 465 (SMTPS) connections work correctly with immediate TLS
  */
 
-const smtpValidatorAdvanced = require('./lib/smtpValidatorAdvanced');
+const SMTPValidatorAdvanced = require('./lib/smtpValidatorAdvanced');
 
 console.log('🧪 Testing SSL/TLS Fix for Port 465');
 console.log('=' .repeat(80));
@@ -22,7 +22,9 @@ async function testSSLFix() {
   console.log('');
 
   try {
-    const result = await smtpValidatorAdvanced.validateCombo(
+    // Create validator instance without proxy
+    const validator = new SMTPValidatorAdvanced({ useProxy: false });
+    const result = await validator.validateCombo(
       testCombo.email,
       testCombo.password,
       { timeout: 5000 }

@@ -74,7 +74,8 @@ router.post('/process', async (req, res) => {
       threads: parseInt(threads) || 5,
       timeout: options.timeout || 10000,
       skipBlacklist: options.skipBlacklist || false,
-      retryFailed: options.retryFailed || false
+      retryFailed: options.retryFailed || false,
+      useProxy: options.useProxy || false // Enable proxy rotation for IP protection
     });
 
     // Store session

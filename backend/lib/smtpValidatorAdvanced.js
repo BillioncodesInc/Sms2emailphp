@@ -15,9 +15,28 @@
 const net = require('net');
 const dns = require('dns').promises;
 const tls = require('tls');
+const { SocksProxyAgent } = require('socks-proxy-agent');
+const smtpProxyManager = require('./smtpProxyManager');
 
 class SMTPValidatorAdvanced {
-  constructor() {
+  constructor(options = {}) {
+    // Proxy configuration
+    this.useProxy = options.useProxy || false;
+    this.proxyManager = smtpProxyManager;
+
+    // Load proxies if enabled
+    if (this.useProxy) {
+      this.proxyManager.loadProxies();
+      if (!this.proxyManager.hasProxies()) {
+        console.warn('⚠️  Proxy mode enabled but no proxies configured');
+        this.useProxy = false;
+      } else {
+        console.log(`✅ Proxy mode enabled with ${this.proxyManager.getProxyCount()} proxies`);
+      }
+    }
+
+    // Server discovery limit (increase when proxies enabled)
+    this.maxServersToTry = this.useProxy ? 15 : 3;
     // Custom DNS servers (like mailpass2smtp.py)
     this.DNS_SERVERS = [
       '1.1.1.1',        // Cloudflare
@@ -219,7 +238,82 @@ class SMTPValidatorAdvanced {
   }
 
   /**
-   * Create raw socket connection
+   * Create proxied socket connection using SOCKS proxy
+   * @param {string} host - Hostname or IP
+   * @param {number} port - Port number
+   * @param {Object} proxyConfig - Proxy configuration from proxyManager
+   * @returns {Promise<Socket>} Connected socket through proxy
+   */
+  async createProxiedConnection(host, port, proxyConfig) {
+    const formattedProxy = this.proxyManager.formatProxyForSocks(proxyConfig);
+
+    if (!formattedProxy) {
+      throw new Error('Invalid proxy configuration');
+    }
+
+    // Create SOCKS proxy agent
+    const agent = new SocksProxyAgent(formattedProxy.url);
+
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error('Proxy connection timeout'));
+      }, this.CONNECTION_TIMEOUT);
+
+      try {
+        // For port 465, we need TLS over proxy
+        if (port === 465) {
+          const tlsOptions = {
+            host: host,
+            port: port,
+            agent: agent,
+            rejectUnauthorized: false,
+            minVersion: 'TLSv1',
+            maxVersion: 'TLSv1.3',
+            timeout: this.SOCKET_TIMEOUT
+          };
+
+          const socket = tls.connect(tlsOptions, () => {
+            clearTimeout(timeout);
+            resolve(socket);
+          });
+
+          socket.on('error', (err) => {
+            clearTimeout(timeout);
+            reject(new Error(`Proxy TLS error: ${err.message}`));
+          });
+
+        } else {
+          // Plain TCP through proxy for other ports
+          const socket = net.connect({
+            host: host,
+            port: port,
+            agent: agent,
+            timeout: this.SOCKET_TIMEOUT
+          }, () => {
+            clearTimeout(timeout);
+            resolve(socket);
+          });
+
+          socket.on('error', (err) => {
+            clearTimeout(timeout);
+            reject(new Error(`Proxy connection error: ${err.message}`));
+          });
+
+          socket.on('timeout', () => {
+            clearTimeout(timeout);
+            socket.destroy();
+            reject(new Error('Proxy socket timeout'));
+          });
+        }
+      } catch (error) {
+        clearTimeout(timeout);
+        reject(error);
+      }
+    });
+  }
+
+  /**
+   * Create raw socket connection (direct or through proxy)
    * For port 465 (SMTPS), creates TLS socket directly
    * For other ports, creates plain TCP socket
    * @param {string} host - Hostname or IP
@@ -227,6 +321,15 @@ class SMTPValidatorAdvanced {
    * @returns {Promise<Socket>} Connected socket
    */
   createSocketConnection(host, port) {
+    // If proxy mode enabled, get next proxy and use it
+    if (this.useProxy) {
+      const proxy = this.proxyManager.getNextProxy();
+      if (proxy) {
+        return this.createProxiedConnection(host, port, proxy);
+      }
+      // If no proxy available, fall back to direct connection
+      console.warn('⚠️  No proxy available, using direct connection');
+    }
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
         if (socket) {
@@ -734,8 +837,8 @@ class SMTPValidatorAdvanced {
       if (promiseResult.status === 'fulfilled' && promiseResult.value) {
         result.servers.push(promiseResult.value);
 
-        // Stop after finding 3 working servers
-        if (result.servers.length >= 3) {
+        // Stop after finding max servers (3 without proxy, 15 with proxy)
+        if (result.servers.length >= this.maxServersToTry) {
           break;
         }
       }
@@ -972,7 +1075,5 @@ class SMTPValidatorAdvanced {
   }
 }
 
-// Create singleton instance
-const smtpValidatorAdvanced = new SMTPValidatorAdvanced();
-
-module.exports = smtpValidatorAdvanced;
+// Export the class for instance creation with options
+module.exports = SMTPValidatorAdvanced;
