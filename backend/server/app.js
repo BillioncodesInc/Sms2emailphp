@@ -820,7 +820,6 @@ app.post("/api/smtp/test-bulk", async (req, res) => {
     }
 
     const results = [];
-    const smtpHelper = require('../lib/smtp');
 
     for (let i = 0; i < smtplist.length; i++) {
       const line = smtplist[i].trim();
@@ -830,31 +829,18 @@ app.post("/api/smtp/test-bulk", async (req, res) => {
       let host, port, user, pass;
 
       try {
-        // Determine format based on service and parts length
-        if (service && service !== 'none') {
-          // Format: password|email
-          if (parts.length === 2) {
-            [pass, user] = parts;
-            const smtpInfo = smtpHelper.getServiceConfig(service, user);
-            if (!smtpInfo) {
-              throw new Error(`Unknown service: ${service}`);
-            }
-            host = smtpInfo.host;
-            port = smtpInfo.port;
-          } else {
-            throw new Error('Invalid format for service-based SMTP. Expected: password|email');
+        // Format: host|port|username|password
+        if (parts.length === 4) {
+          [host, port, user, pass] = parts;
+          port = parseInt(port);
+          if (isNaN(port) || port < 1 || port > 65535) {
+            throw new Error(`Invalid port: ${parts[1]}`);
           }
+        } else if (parts.length === 2) {
+          // Format: password|email (for service-based, but service selection is disabled for now)
+          throw new Error('Service-based SMTP format not yet supported. Use: host|port|username|password');
         } else {
-          // Format: host|port|username|password
-          if (parts.length === 4) {
-            [host, port, user, pass] = parts;
-            port = parseInt(port);
-            if (isNaN(port) || port < 1 || port > 65535) {
-              throw new Error(`Invalid port: ${parts[1]}`);
-            }
-          } else {
-            throw new Error('Invalid format for custom SMTP. Expected: host|port|username|password');
-          }
+          throw new Error('Invalid format. Expected: host|port|username|password');
         }
 
         // Create transporter for this account
