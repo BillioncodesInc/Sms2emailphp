@@ -2416,8 +2416,32 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
         <span id="inboxProxyStatus">Checking proxy configuration...</span>
       </div>
 
-      <!-- Upload/Input Card -->
+      <!-- Method Selection -->
       <div class="card mb-4">
+        <div class="card-header">
+          <i class="fas fa-cog"></i> Search Method
+        </div>
+        <div class="card-body">
+          <div class="btn-group w-100 mb-3" role="group">
+            <input type="radio" class="btn-check" name="inboxMethod" id="inboxMethodSmtp" value="smtp" checked onchange="switchInboxMethod('smtp')">
+            <label class="btn btn-outline-primary" for="inboxMethodSmtp">
+              <i class="fas fa-server"></i> SMTP / IMAP
+            </label>
+
+            <input type="radio" class="btn-check" name="inboxMethod" id="inboxMethodCookie" value="cookie" onchange="switchInboxMethod('cookie')">
+            <label class="btn btn-outline-primary" for="inboxMethodCookie">
+              <i class="fas fa-cookie-bite"></i> Cookie Authentication
+            </label>
+          </div>
+          <small class="text-muted">
+            <strong>SMTP/IMAP:</strong> Traditional login with email and password.
+            <strong>Cookie:</strong> Import browser cookies for Gmail/Outlook (bypasses 2FA).
+          </small>
+        </div>
+      </div>
+
+      <!-- SMTP Method Card -->
+      <div class="card mb-4" id="inboxSmtpCard">
         <div class="card-header">
           <i class="fas fa-upload"></i> SMTP Credentials
         </div>
@@ -2460,6 +2484,89 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
               <i class="fas fa-stop"></i> Stop
             </button>
             <button class="btn btn-secondary" id="inboxClearBtn" onclick="clearInboxSearch()">
+              <i class="fas fa-trash"></i> Clear
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Cookie Method Card -->
+      <div class="card mb-4" id="inboxCookieCard" style="display: none;">
+        <div class="card-header">
+          <i class="fas fa-cookie-bite"></i> Cookie Files Upload
+        </div>
+        <div class="card-body">
+          <div class="alert" style="background: rgba(102, 126, 234, 0.1); border-left: 4px solid var(--primary-color); margin-bottom: 20px;">
+            <i class="fas fa-info-circle"></i>
+            <strong>How to export cookies:</strong>
+            <ol class="mb-0 mt-2">
+              <li>Login to Gmail or Outlook in your browser</li>
+              <li>Use a browser extension like "EditThisCookie" or "Cookie-Editor" to export cookies</li>
+              <li>Save each session as a .txt file (see cookie.txt sample format)</li>
+              <li>Upload multiple .txt files here (max 50MB total)</li>
+            </ol>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-bold">
+              <i class="fas fa-cloud-upload-alt"></i> Upload Cookie Files (.txt)
+            </label>
+            <input
+              type="file"
+              class="form-control mb-2"
+              id="cookieFiles"
+              accept=".txt"
+              multiple
+              onchange="handleCookieUpload()">
+            <small class="text-muted">
+              Select multiple .txt files or a folder containing cookie files. Max 50MB total.
+            </small>
+          </div>
+
+          <div class="mb-3" id="cookieUploadStatus" style="display: none;">
+            <div class="alert" id="cookieUploadAlert">
+              <div class="d-flex align-items-center">
+                <div class="spinner-border spinner-border-sm me-2" role="status" id="cookieUploadSpinner">
+                  <span class="visually-hidden">Loading...</span>
+                </div>
+                <span id="cookieUploadMessage">Validating cookie files...</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="mb-3" id="cookieAccountsList" style="display: none;">
+            <label class="form-label fw-bold">
+              <i class="fas fa-check-circle text-success"></i> Validated Accounts
+            </label>
+            <div id="cookieAccountsContainer" class="border rounded p-3" style="background: rgba(0,0,0,0.2); max-height: 200px; overflow-y: auto;">
+              <!-- Validated accounts will be listed here -->
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-bold">Provider Filter (Optional)</label>
+            <select class="form-select" id="cookieProvider" style="background: rgba(0,0,0,0.2); color: #fff; border: 1px solid rgba(255,255,255,0.1);">
+              <option value="all" selected>All Providers</option>
+              <option value="gmail">Gmail Only</option>
+              <option value="outlook">Outlook Only</option>
+            </select>
+            <small class="text-muted">Filter which accounts to search based on provider</small>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-bold">Search Keywords (comma-separated)</label>
+            <input type="text" class="form-control" id="cookieKeywords" placeholder="invoice, payment, receipt, order" style="background: rgba(0,0,0,0.2); color: #fff; border: 1px solid rgba(255,255,255,0.1);">
+            <small class="text-muted">Enter keywords to search for in email subjects</small>
+          </div>
+
+          <div class="d-flex gap-2">
+            <button class="btn btn-primary" id="cookieStartBtn" onclick="startCookieInboxSearch()" disabled>
+              <i class="fas fa-search"></i> Start Cookie Search
+            </button>
+            <button class="btn btn-danger" id="cookieStopBtn" onclick="stopCookieInboxSearch()" disabled>
+              <i class="fas fa-stop"></i> Stop
+            </button>
+            <button class="btn btn-secondary" id="cookieClearBtn" onclick="clearCookieInboxSearch()">
               <i class="fas fa-trash"></i> Clear
             </button>
           </div>
@@ -8074,6 +8181,366 @@ Username: ${detectedConfig.auth.username}`;
       });
 
       return csv;
+    }
+
+    // ============================================================================
+    // COOKIE-BASED INBOX SEARCHER FUNCTIONALITY
+    // ============================================================================
+
+    let cookieUploadSessionId = null;
+    let cookieSearchSessionId = null;
+    let cookieSearchWs = null;
+    let cookieSearchResults = [];
+    let validatedAccounts = [];
+
+    // Switch between SMTP and Cookie methods
+    function switchInboxMethod(method) {
+      const smtpCard = document.getElementById('inboxSmtpCard');
+      const cookieCard = document.getElementById('inboxCookieCard');
+
+      if (method === 'smtp') {
+        smtpCard.style.display = 'block';
+        cookieCard.style.display = 'none';
+      } else if (method === 'cookie') {
+        smtpCard.style.display = 'none';
+        cookieCard.style.display = 'block';
+      }
+    }
+
+    // Handle cookie file upload
+    async function handleCookieUpload() {
+      const fileInput = document.getElementById('cookieFiles');
+      const files = fileInput.files;
+
+      if (!files || files.length === 0) {
+        return;
+      }
+
+      // Show upload status
+      document.getElementById('cookieUploadStatus').style.display = 'block';
+      document.getElementById('cookieUploadSpinner').style.display = 'inline-block';
+      document.getElementById('cookieUploadAlert').className = 'alert alert-info';
+      document.getElementById('cookieUploadMessage').textContent = `Validating ${files.length} cookie file(s)...`;
+
+      try {
+        // Create FormData
+        const formData = new FormData();
+        for (let i = 0; i < files.length; i++) {
+          formData.append('cookieFiles', files[i]);
+        }
+
+        // Upload and validate
+        const response = await fetch(`${API_BASE_URL}/cookie-inbox/upload`, {
+          method: 'POST',
+          body: formData
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+          cookieUploadSessionId = result.sessionId;
+          validatedAccounts = result.accounts;
+
+          // Hide spinner
+          document.getElementById('cookieUploadSpinner').style.display = 'none';
+
+          // Show success message
+          document.getElementById('cookieUploadAlert').className = 'alert alert-success';
+          document.getElementById('cookieUploadMessage').innerHTML = `
+            <i class="fas fa-check-circle"></i>
+            <strong>Success!</strong> Validated ${result.validCount} of ${files.length} file(s).
+            ${result.errorCount > 0 ? `<br><span class="text-warning">${result.errorCount} file(s) failed validation.</span>` : ''}
+          `;
+
+          // Show validated accounts
+          if (result.validCount > 0) {
+            displayValidatedAccounts(result.accounts);
+            document.getElementById('cookieStartBtn').disabled = false;
+          }
+
+          // Show errors if any
+          if (result.errors && result.errors.length > 0) {
+            console.warn('Cookie validation errors:', result.errors);
+          }
+
+        } else {
+          throw new Error(result.message || 'Upload failed');
+        }
+
+      } catch (error) {
+        console.error('Cookie upload error:', error);
+
+        document.getElementById('cookieUploadSpinner').style.display = 'none';
+        document.getElementById('cookieUploadAlert').className = 'alert alert-danger';
+        document.getElementById('cookieUploadMessage').innerHTML = `
+          <i class="fas fa-exclamation-circle"></i>
+          <strong>Error!</strong> ${error.message}
+        `;
+      }
+    }
+
+    // Display validated accounts
+    function displayValidatedAccounts(accounts) {
+      const container = document.getElementById('cookieAccountsContainer');
+      const list = document.getElementById('cookieAccountsList');
+
+      let html = '<div class="list-group list-group-flush">';
+
+      accounts.forEach((account, index) => {
+        const providerIcon = account.provider === 'gmail' ? 'fa-google' : 'fa-microsoft';
+        const providerColor = account.provider === 'gmail' ? '#ea4335' : '#00a4ef';
+
+        html += `
+          <div class="list-group-item d-flex justify-content-between align-items-center" style="background: transparent; border-color: rgba(255,255,255,0.1);">
+            <div>
+              <i class="fab ${providerIcon}" style="color: ${providerColor}; margin-right: 8px;"></i>
+              <strong>${account.email}</strong>
+            </div>
+            <div>
+              <span class="badge bg-secondary">${account.cookieCount} cookies</span>
+              <span class="badge" style="background: ${providerColor};">${account.provider.toUpperCase()}</span>
+            </div>
+          </div>
+        `;
+      });
+
+      html += '</div>';
+      container.innerHTML = html;
+      list.style.display = 'block';
+    }
+
+    // Start cookie-based inbox search
+    async function startCookieInboxSearch() {
+      const keywordsInput = document.getElementById('cookieKeywords').value.trim();
+      const provider = document.getElementById('cookieProvider').value;
+
+      if (!cookieUploadSessionId) {
+        alert('Please upload cookie files first');
+        return;
+      }
+
+      if (!keywordsInput) {
+        alert('Please enter search keywords');
+        return;
+      }
+
+      const keywords = keywordsInput.split(',').map(k => k.trim()).filter(k => k);
+
+      if (keywords.length === 0) {
+        alert('Please enter valid keywords');
+        return;
+      }
+
+      try {
+        const response = await fetch(`${API_BASE_URL}/cookie-inbox/search`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sessionId: cookieUploadSessionId,
+            keywords,
+            provider
+          })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+          cookieSearchSessionId = result.searchSessionId;
+          cookieSearchResults = [];
+
+          // Show progress card
+          document.getElementById('inboxProgressCard').style.display = 'block';
+          document.getElementById('inboxResultsCard').style.display = 'block';
+
+          // Update stats
+          document.getElementById('inboxStatTotal').textContent = result.accountCount;
+          document.getElementById('inboxStatCompleted').textContent = '0';
+          document.getElementById('inboxStatFailed').textContent = '0';
+          document.getElementById('inboxStatMatches').textContent = '0';
+
+          // Clear results
+          document.getElementById('inboxResultsContainer').innerHTML = '<p style="color: #7f8c8d;">Searching email accounts...</p>';
+
+          // Connect WebSocket
+          connectCookieInboxWebSocket(cookieSearchSessionId);
+
+          // Update buttons
+          document.getElementById('cookieStartBtn').disabled = true;
+          document.getElementById('cookieStopBtn').disabled = false;
+
+        } else {
+          alert('Failed to start search: ' + (result.message || 'Unknown error'));
+        }
+
+      } catch (error) {
+        console.error('Error starting cookie inbox search:', error);
+        alert('Error starting search: ' + error.message);
+      }
+    }
+
+    // Connect WebSocket for cookie inbox search
+    function connectCookieInboxWebSocket(searchSessionId) {
+      const wsUrl = `ws://localhost:9090/ws/cookie-inbox/${searchSessionId}`;
+      cookieSearchWs = new WebSocket(wsUrl);
+
+      cookieSearchWs.onopen = () => {
+        console.log('Cookie inbox search WebSocket connected');
+      };
+
+      cookieSearchWs.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+
+        if (data.type === 'result') {
+          // Update progress
+          if (data.progress) {
+            const completed = data.progress.completed || 0;
+            const failed = data.progress.failed || 0;
+            const total = data.progress.total || 1;
+            const percentage = Math.round(((completed + failed) / total) * 100);
+
+            document.getElementById('inboxProgressText').textContent = `${completed + failed}/${total} (${percentage}%)`;
+            document.getElementById('inboxProgressBar').style.width = percentage + '%';
+            document.getElementById('inboxProgressBar').textContent = percentage + '%';
+
+            document.getElementById('inboxStatCompleted').textContent = completed;
+            document.getElementById('inboxStatFailed').textContent = failed;
+          }
+
+          // Update matches
+          if (data.matchCount !== undefined) {
+            const currentMatches = parseInt(document.getElementById('inboxStatMatches').textContent) || 0;
+            document.getElementById('inboxStatMatches').textContent = currentMatches + data.matchCount;
+          }
+
+          // Add result
+          cookieSearchResults.push({
+            email: data.email,
+            success: data.matchCount > 0,
+            matches: data.matches || [],
+            matchCount: data.matchCount || 0
+          });
+
+          renderCookieInboxResult(data);
+
+        } else if (data.type === 'complete') {
+          handleCookieInboxSearchComplete();
+
+        } else if (data.type === 'error') {
+          console.error('Cookie inbox search error:', data.error);
+        }
+      };
+
+      cookieSearchWs.onerror = (error) => {
+        console.error('Cookie inbox WebSocket error:', error);
+      };
+
+      cookieSearchWs.onclose = () => {
+        console.log('Cookie inbox search WebSocket closed');
+      };
+    }
+
+    // Render a single cookie inbox result
+    function renderCookieInboxResult(result) {
+      const container = document.getElementById('inboxResultsContainer');
+
+      // Clear "searching" message on first result
+      if (cookieSearchResults.length === 1) {
+        container.innerHTML = '';
+      }
+
+      const resultId = `cookie-inbox-result-${cookieSearchResults.length}`;
+      const statusClass = result.matchCount > 0 ? 'success' : 'secondary';
+      const statusIcon = result.matchCount > 0 ? 'check-circle' : 'times-circle';
+
+      const resultHtml = `
+        <div class="mb-3 border rounded" style="background: rgba(0,0,0,0.1); border-color: rgba(255,255,255,0.1) !important;">
+          <div class="result-header" style="padding: 12px; background: #2c3e50; cursor: pointer; display: flex; justify-content: between; align-items: center;" onclick="toggleInboxResult('${resultId}')">
+            <div>
+              <i class="fas fa-${statusIcon} text-${statusClass}"></i>
+              <strong>${result.email}</strong>
+            </div>
+            <div>
+              <span class="badge bg-${statusClass}">${result.matchCount} matches</span>
+            </div>
+          </div>
+          <div id="${resultId}" class="result-body" style="padding: 15px; display: block;">
+            ${result.matchCount > 0 ? renderInboxMatches(result.matches) : `<p style="color: #e74c3c;">No matches found</p>`}
+          </div>
+        </div>
+      `;
+
+      container.insertAdjacentHTML('beforeend', resultHtml);
+    }
+
+    // Handle cookie inbox search completion
+    function handleCookieInboxSearchComplete() {
+      console.log('Cookie inbox search completed');
+
+      // Update buttons
+      document.getElementById('cookieStartBtn').disabled = false;
+      document.getElementById('cookieStopBtn').disabled = true;
+
+      // Close WebSocket
+      if (cookieSearchWs) {
+        cookieSearchWs.close();
+        cookieSearchWs = null;
+      }
+    }
+
+    // Stop cookie inbox search
+    async function stopCookieInboxSearch() {
+      if (!cookieSearchSessionId) return;
+
+      try {
+        await fetch(`${API_BASE_URL}/cookie-inbox/session/${cookieSearchSessionId}`, {
+          method: 'DELETE'
+        });
+
+        if (cookieSearchWs) {
+          cookieSearchWs.close();
+          cookieSearchWs = null;
+        }
+
+        cookieSearchSessionId = null;
+        handleCookieInboxSearchComplete();
+
+      } catch (error) {
+        console.error('Error stopping cookie inbox search:', error);
+      }
+    }
+
+    // Clear cookie inbox search
+    function clearCookieInboxSearch() {
+      // Reset file input
+      document.getElementById('cookieFiles').value = '';
+      document.getElementById('cookieKeywords').value = '';
+      document.getElementById('cookieProvider').value = 'all';
+
+      // Hide status sections
+      document.getElementById('cookieUploadStatus').style.display = 'none';
+      document.getElementById('cookieAccountsList').style.display = 'none';
+
+      // Reset session IDs
+      cookieUploadSessionId = null;
+      cookieSearchSessionId = null;
+      validatedAccounts = [];
+      cookieSearchResults = [];
+
+      // Reset buttons
+      document.getElementById('cookieStartBtn').disabled = true;
+      document.getElementById('cookieStopBtn').disabled = true;
+
+      // Clear results
+      document.getElementById('inboxResultsContainer').innerHTML = '<p style="color: #7f8c8d;">No results yet. Upload cookies and start a search.</p>';
+      document.getElementById('inboxStatTotal').textContent = '0';
+      document.getElementById('inboxStatCompleted').textContent = '0';
+      document.getElementById('inboxStatFailed').textContent = '0';
+      document.getElementById('inboxStatMatches').textContent = '0';
+
+      // Stop search if running
+      if (cookieSearchSessionId) {
+        stopCookieInboxSearch();
+      }
     }
 
     // ============================================================================

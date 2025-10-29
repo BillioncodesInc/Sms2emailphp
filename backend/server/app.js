@@ -1278,6 +1278,10 @@ app.use('/api/smtp/combo', comboRouter);
 const { router: inboxRouter, setupWebSocket: setupInboxWebSocket } = require('./inboxRoutes');
 app.use('/api/enhanced/inbox', inboxRouter);
 
+/* =================== Cookie-Based Inbox Searcher Routes =================== */
+const { router: cookieInboxRouter, setupWebSocket: setupCookieInboxWebSocket } = require('./cookieInboxRoutes');
+app.use('/api/cookie-inbox', cookieInboxRouter);
+
 /* =================== Contact Extractor Routes =================== */
 const { router: contactRouter, setupWebSocket: setupContactWebSocket } = require('./contactRoutes');
 app.use('/api/enhanced/contact', contactRouter);
@@ -1467,6 +1471,7 @@ const server = http.createServer(app);
 // Create WebSocket servers for different features
 const wssCombo = new WebSocket.Server({ noServer: true });
 const wssInbox = new WebSocket.Server({ noServer: true });
+const wssCookieInbox = new WebSocket.Server({ noServer: true });
 const wssContact = new WebSocket.Server({ noServer: true });
 const wssDebounce = new WebSocket.Server({ noServer: true });
 const wssRedirector = new WebSocket.Server({ noServer: true });
@@ -1474,6 +1479,7 @@ const wssRedirector = new WebSocket.Server({ noServer: true });
 // Setup WebSocket handlers
 setupWebSocket(wssCombo);
 setupInboxWebSocket(wssInbox);
+setupCookieInboxWebSocket(wssCookieInbox);
 setupContactWebSocket(wssContact);
 setupDebounceWebSocket(wssDebounce);
 setRedirectorWS(wssRedirector);
@@ -1489,6 +1495,10 @@ server.on('upgrade', (request, socket, head) => {
   } else if (pathname.startsWith('/ws/inbox/')) {
     wssInbox.handleUpgrade(request, socket, head, (ws) => {
       wssInbox.emit('connection', ws, request);
+    });
+  } else if (pathname.startsWith('/ws/cookie-inbox/')) {
+    wssCookieInbox.handleUpgrade(request, socket, head, (ws) => {
+      wssCookieInbox.emit('connection', ws, request);
     });
   } else if (pathname.startsWith('/ws/contacts/')) {
     wssContact.handleUpgrade(request, socket, head, (ws) => {

@@ -1,6 +1,0 @@
-12345|https://track.adform.net/adfserve/?bn=12345;reviurl=https://example.com/test1
-67890|https://secure.adnxs.com/seg?redir=https://somesite.com/page
-11111|https://p.rfihub.com/cm?forward=http://target.org/path
-22222|https://tags.bluekai.com/site/35702?redir=http://destination.net
-33333|https://ssum-casaliadia.com/usemtermedir?s=183875&cb=http://site.io
-44444|https://sync.mathatag.com/sync/img?cs_wd_sy=1&dp=43&redir=http://test.com
