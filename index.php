@@ -8230,7 +8230,7 @@ Username: ${detectedConfig.auth.username}`;
         }
 
         // Upload and validate
-        const response = await fetch(`${API_BASE_URL}/cookie-inbox/upload`, {
+        const response = await fetch(`${API_LEGACY}/cookie-inbox/upload`, {
           method: 'POST',
           body: formData
         });
@@ -8332,7 +8332,7 @@ Username: ${detectedConfig.auth.username}`;
       }
 
       try {
-        const response = await fetch(`${API_BASE_URL}/cookie-inbox/search`, {
+        const response = await fetch(`${API_LEGACY}/cookie-inbox/search`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -8492,7 +8492,7 @@ Username: ${detectedConfig.auth.username}`;
       if (!cookieSearchSessionId) return;
 
       try {
-        await fetch(`${API_BASE_URL}/cookie-inbox/session/${cookieSearchSessionId}`, {
+        await fetch(`${API_LEGACY}/cookie-inbox/session/${cookieSearchSessionId}`, {
           method: 'DELETE'
         });
 
