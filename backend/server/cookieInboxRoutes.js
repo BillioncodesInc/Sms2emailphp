@@ -268,10 +268,30 @@ async function processCookieInboxSearch(searchSessionId, cookieDataArray, keywor
       } else if (update.type === 'error') {
         sessionState.failed++;
 
+        // Save error result
+        const errorData = {
+          email: update.email,
+          provider: update.provider || 'unknown',
+          status: 'failed',
+          matchCount: 0,
+          matches: [],
+          error: update.error,
+          timestamp: new Date().toISOString()
+        };
+
+        tempStorage.saveResult('cookie-inbox', searchSessionId, update.email, errorData);
+        sessionState.results.push(errorData);
+
         emitWebSocketUpdate(searchSessionId, {
           type: 'error',
           email: update.email,
-          error: update.error
+          error: update.error,
+          progress: {
+            total: sessionState.total,
+            completed: sessionState.completed,
+            failed: sessionState.failed,
+            percentage: Math.round((sessionState.completed + sessionState.failed) / sessionState.total * 100)
+          }
         });
 
       } else if (update.type === 'progress') {

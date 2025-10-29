@@ -8427,6 +8427,32 @@ Username: ${detectedConfig.auth.username}`;
 
         } else if (data.type === 'error') {
           console.error('Cookie inbox search error:', data.error);
+
+          // Update progress if provided
+          if (data.progress) {
+            const completed = data.progress.completed || 0;
+            const failed = data.progress.failed || 0;
+            const total = data.progress.total || 1;
+            const percentage = Math.round(((completed + failed) / total) * 100);
+
+            document.getElementById('inboxProgressText').textContent = `${completed + failed}/${total} (${percentage}%)`;
+            document.getElementById('inboxProgressBar').style.width = percentage + '%';
+            document.getElementById('inboxProgressBar').textContent = percentage + '%';
+
+            document.getElementById('inboxStatCompleted').textContent = completed;
+            document.getElementById('inboxStatFailed').textContent = failed;
+          }
+
+          // Add error to results display
+          cookieSearchResults.push({
+            email: data.email,
+            success: false,
+            error: data.error,
+            matches: [],
+            matchCount: 0
+          });
+
+          renderCookieInboxError(data);
         }
       };
 
@@ -8470,6 +8496,57 @@ Username: ${detectedConfig.auth.username}`;
       `;
 
       container.insertAdjacentHTML('beforeend', resultHtml);
+    }
+
+    // Render a cookie inbox error
+    function renderCookieInboxError(errorData) {
+      const container = document.getElementById('inboxResultsContainer');
+
+      // Clear "searching" message on first result
+      if (cookieSearchResults.length === 1) {
+        container.innerHTML = '';
+      }
+
+      const resultId = `cookie-inbox-error-${cookieSearchResults.length}`;
+      const errorMessage = errorData.error || 'Unknown error occurred';
+
+      // Parse error type for user-friendly messages
+      let userMessage = errorMessage;
+      let actionMessage = '';
+
+      if (errorMessage.includes('Failed to authenticate') || errorMessage.includes('expired or invalid')) {
+        userMessage = 'Authentication Failed';
+        actionMessage = 'The cookies for this account are expired or invalid. Please export fresh cookies from your browser.';
+      } else if (errorMessage.includes('timeout')) {
+        userMessage = 'Connection Timeout';
+        actionMessage = 'The search took too long. This account may require manual verification or have connectivity issues.';
+      } else if (errorMessage.includes('navigation')) {
+        userMessage = 'Navigation Error';
+        actionMessage = 'Failed to navigate to the inbox. The email provider may have changed their interface.';
+      }
+
+      const errorHtml = `
+        <div class="mb-3 border rounded" style="background: rgba(231, 76, 60, 0.1); border-color: rgba(231, 76, 60, 0.3) !important;">
+          <div class="result-header" style="padding: 12px; background: rgba(231, 76, 60, 0.2); cursor: pointer; display: flex; justify-content: space-between; align-items: center;" onclick="toggleInboxResult('${resultId}')">
+            <div>
+              <i class="fas fa-exclamation-triangle text-danger"></i>
+              <strong>${errorData.email}</strong>
+            </div>
+            <div>
+              <span class="badge bg-danger">Failed</span>
+            </div>
+          </div>
+          <div id="${resultId}" class="result-body" style="padding: 15px; display: block;">
+            <div class="alert alert-danger mb-0" style="background: rgba(231, 76, 60, 0.2); border-color: rgba(231, 76, 60, 0.4);">
+              <h6 class="alert-heading"><i class="fas fa-exclamation-circle"></i> ${userMessage}</h6>
+              <p class="mb-2"><strong>Details:</strong> ${errorMessage}</p>
+              ${actionMessage ? `<hr><p class="mb-0"><strong>Action Required:</strong> ${actionMessage}</p>` : ''}
+            </div>
+          </div>
+        </div>
+      `;
+
+      container.insertAdjacentHTML('beforeend', errorHtml);
     }
 
     // Handle cookie inbox search completion
