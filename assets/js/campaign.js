@@ -540,8 +540,6 @@ async function sendEmailCampaign(total) {
  * Send SMS campaign
  */
 async function sendSMSCampaign(total) {
-  let sent = 0;
-  let failed = 0;
   let message = campaignData.content.message;
 
   // Add link if provided
@@ -549,47 +547,42 @@ async function sendSMSCampaign(total) {
     message += ' ' + campaignData.content.link;
   }
 
-  // Send to each recipient
-  for (let i = 0; i < campaignData.recipients.length; i++) {
-    const number = campaignData.recipients[i];
+  try {
+    // Use the bulk SMS campaign endpoint instead of individual sends
+    const response = await fetch(`${API_BASE}/campaign/execute-sms`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        campaignId: 'wizard-' + Date.now(), // Generate temporary campaign ID
+        carrier: campaignData.carrier,
+        recipients: campaignData.recipients,
+        message: message,
+        sender: campaignData.sender.name,
+        delay: campaignData.options.delay || 1000
+      })
+    });
 
-    try {
-      // Apply delay
-      if (i > 0 && campaignData.options.delay > 0) {
-        await new Promise(resolve => setTimeout(resolve, campaignData.options.delay));
-      }
-
-      // Send SMS
-      const response = await fetch(`${API_BASE}/text`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          number: number,
-          message: spinText(message),
-          carrier: campaignData.carrier,
-          from: campaignData.sender.name
-        })
-      });
-
-      const result = await response.text();
-
-      if (result === 'true' || result.includes('true')) {
-        sent++;
-      } else {
-        failed++;
-      }
-
-    } catch (error) {
-      console.error('Failed to send to ' + number, error);
-      failed++;
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
 
-    // Update progress
-    updateProgress(sent, failed, total);
-  }
+    const result = await response.json();
 
-  // Show completion message
-  showSendResults(sent, failed, total);
+    if (result.success) {
+      // Update progress with final results
+      updateProgress(result.results.sent, result.results.failed, total);
+
+      // Show completion message
+      showSendResults(result.results.sent, result.results.failed, total);
+    } else {
+      throw new Error(result.error || 'SMS campaign failed');
+    }
+
+  } catch (error) {
+    console.error('SMS campaign failed:', error);
+    showAlert('SMS campaign failed: ' + error.message, 'danger');
+    updateProgress(0, total, total); // Mark all as failed
+  }
 }
 
 /**

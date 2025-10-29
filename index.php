@@ -1334,13 +1334,11 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
                 <label class="form-label">SMS Carrier *</label>
                 <select class="form-control" id="page-campaign-carrier">
                   <option value="">--Select Carrier--</option>
-                  <option value="verizon">Verizon</option>
-                  <option value="att">AT&T</option>
-                  <option value="tmobile">T-Mobile</option>
-                  <option value="sprint">Sprint</option>
-                  <option value="boost">Boost Mobile</option>
-                  <option value="cricket">Cricket</option>
-                  <option value="uscellular">US Cellular</option>
+                  <?php
+                  foreach($carriers as $carrier){
+                    echo "<option value='" . htmlspecialchars($carrier, ENT_QUOTES, 'UTF-8') . "'>" . htmlspecialchars($carrier, ENT_QUOTES, 'UTF-8') . "</option>";
+                  }
+                  ?>
                 </select>
               </div>
               <div class="mb-3">
@@ -4983,16 +4981,90 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
             }
 
           } else {
-            // Email Campaign Execution (placeholder - requires implementation)
-            appendCampaignLog(id, `[${new Date().toLocaleTimeString()}] Email campaign execution not yet implemented`, 'warning');
-            appendCampaignLog(id, `[${new Date().toLocaleTimeString()}] Mode: ${campaign.mode}`, 'info');
+            // Email Campaign Execution
+            appendCampaignLog(id, `[${new Date().toLocaleTimeString()}] Executing email campaign...`, 'info');
+            appendCampaignLog(id, `[${new Date().toLocaleTimeString()}] Recipients: ${campaign.recipients.length}`, 'info');
+            appendCampaignLog(id, `[${new Date().toLocaleTimeString()}] Subject: ${campaign.content.subject}`, 'info');
 
-            // Update to completed (temporary until email sending is implemented)
-            await fetch(`${API_BASE}/campaigns/${id}`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ status: 'completed' })
-            });
+            try {
+              const emailResponse = await fetch(`${API_LEGACY}/email`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  recipients: campaign.recipients,
+                  subject: campaign.content.subject || 'No Subject',
+                  message: campaign.content.message,
+                  sender: campaign.sender?.name || 'Email Gateway',
+                  senderAd: campaign.sender?.email || 'noreply@example.com',
+                  useProxy: campaign.options?.useProxy || false,
+                  enhancedResponse: true, // Get detailed per-recipient tracking
+                  delay: campaign.options?.delay || 500,
+                  protectLinks: campaign.options?.protectLinks || false,
+                  linkProtectionLevel: campaign.options?.linkProtectionLevel || 'high'
+                })
+              });
+
+              const emailResult = await emailResponse.json();
+
+              if (emailResult.success !== undefined) {
+                // Enhanced response with per-recipient tracking
+                appendCampaignLog(id, `[${new Date().toLocaleTimeString()}] ✓ Email campaign completed`, emailResult.sent === emailResult.recipients ? 'success' : 'warning');
+                appendCampaignLog(id, `[${new Date().toLocaleTimeString()}] Sent: ${emailResult.sent}/${emailResult.recipients}`, 'green');
+
+                if (emailResult.failed > 0) {
+                  appendCampaignLog(id, `[${new Date().toLocaleTimeString()}] ⚠ ${emailResult.failed} emails failed`, 'warning');
+
+                  // Log first few failures
+                  const failedDetails = emailResult.details.filter(d => d.status === 'failed');
+                  failedDetails.slice(0, 3).forEach(fail => {
+                    appendCampaignLog(id, `[${new Date().toLocaleTimeString()}]   • ${fail.recipient}: ${fail.error}`, 'error');
+                  });
+
+                  if (failedDetails.length > 3) {
+                    appendCampaignLog(id, `[${new Date().toLocaleTimeString()}]   ... and ${failedDetails.length - 3} more failures`, 'error');
+                  }
+                }
+
+                const successRate = emailResult.recipients > 0
+                  ? Math.round((emailResult.sent / emailResult.recipients) * 100)
+                  : 0;
+
+                // Update campaign status to completed with stats
+                await fetch(`${API_BASE}/campaigns/${id}`, {
+                  method: 'PUT',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    status: 'completed',
+                    stats: {
+                      sent: emailResult.sent,
+                      failed: emailResult.failed,
+                      total: emailResult.recipients,
+                      successRate: successRate,
+                      completedAt: new Date().toISOString()
+                    }
+                  })
+                });
+
+                appendCampaignLog(id, `[${new Date().toLocaleTimeString()}] Campaign completed with ${successRate}% success rate`, 'success');
+              } else {
+                // Legacy response (just "true" or error)
+                appendCampaignLog(id, `[${new Date().toLocaleTimeString()}] ERROR: Unexpected response format`, 'error');
+                appendCampaignLog(id, `[${new Date().toLocaleTimeString()}] Response: ${JSON.stringify(emailResult)}`, 'error');
+              }
+
+            } catch (error) {
+              appendCampaignLog(id, `[${new Date().toLocaleTimeString()}] ERROR: ${error.message}`, 'error');
+
+              // Update to failed status
+              await fetch(`${API_BASE}/campaigns/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  status: 'failed',
+                  error: error.message
+                })
+              });
+            }
           }
 
           // Mark as not running and refresh list

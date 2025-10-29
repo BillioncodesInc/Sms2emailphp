@@ -2,9 +2,10 @@
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/version-3.2.0-blue.svg)
+![Version](https://img.shields.io/badge/version-3.3.0-blue.svg)
 ![Status](https://img.shields.io/badge/status-production%20ready-brightgreen.svg)
-![Tests](https://img.shields.io/badge/tests-26%2F26%20passing-brightgreen.svg)
+![Tests](https://img.shields.io/badge/tests-all%20passing-brightgreen.svg)
+![Campaigns](https://img.shields.io/badge/campaigns-email%20%26%20SMS-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 
 **A comprehensive, production-ready email/SMS campaign management system with advanced deliverability features, AI enhancement, and enterprise-grade performance optimization.**
@@ -55,6 +56,7 @@ SE Gateway is an enterprise-grade email and SMS campaign management platform tha
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| **3.3.0** | 2025-10-29 | **Email & SMS campaign system complete**, dashboard execution, 138 carriers |
 | **3.2.0** | 2025-10-20 | Connection pooling, proxy/SMTP fixes, attachment downloads |
 | **3.1.0** | 2025-10-17 | Inbox Searcher & Contact Extractor features |
 | **3.0.0** | 2025-10-16 | MadCat Mailer integration (9 advanced features) |
@@ -65,12 +67,15 @@ SE Gateway is an enterprise-grade email and SMS campaign management platform tha
 ## ✨ Key Features
 
 ### 📊 Campaign Management
-- ✅ Create, edit, delete campaigns with wizard interface
-- ✅ Real-time statistics (updates every 5 seconds)
-- ✅ Email & SMS modes (134 carrier support)
-- ✅ Bulk operations and template management
-- ✅ A/B testing ready architecture
-- ✅ Campaign scheduling support
+- ✅ **Dual Campaign Wizards** - Multi-step wizard & page-based creation
+- ✅ **Email Mode** - Full SMTP campaign support with enhanced tracking
+- ✅ **SMS Mode** - 138 carrier support via email-to-SMS gateway
+- ✅ **Dashboard Execution** - Run saved campaigns with live terminal logging
+- ✅ **Per-Recipient Tracking** - Detailed success/failure reporting for both modes
+- ✅ **Real-Time Progress** - Live status updates during campaign execution
+- ✅ **Campaign CRUD** - Create, read, update, delete with persistent storage
+- ✅ **Statistics Recording** - Sent/failed/total/success rate tracking
+- ✅ **Bulk Operations** - Template management and A/B testing ready
 
 ### 🔐 SMTP Configuration & Management
 - ✅ **40 Predefined Services** - Gmail, Yahoo, Outlook, SendGrid, Mailgun, etc.
@@ -276,6 +281,126 @@ Checks SMTP server IP against 15+ DNS-based blacklist providers.
   "isBlacklisted": false,
   "isCriticallyBlacklisted": false,
   "recommendation": "✅ Your IP is clean. Good to send!"
+}
+```
+
+### 📧📱 Email & SMS Campaign System
+
+#### Campaign Creation (Both Modes)
+SE Gateway supports **two complete campaign modes** with full feature parity:
+
+**Email Campaign Features:**
+- ✅ Full SMTP integration with all 40 providers
+- ✅ Subject line customization
+- ✅ HTML/plain text message support
+- ✅ Attachment support (up to 25MB)
+- ✅ Link protection and obfuscation
+- ✅ Proxy rotation support
+- ✅ Enhanced response mode with per-recipient tracking
+- ✅ Configurable delays between sends
+
+**SMS Campaign Features:**
+- ✅ **138 Carriers Supported** - Verizon, AT&T, T-Mobile, Sprint, and 134 more
+- ✅ **Email-to-SMS Gateway** - Converts phone numbers to carrier email addresses
+- ✅ **Phone Number Sanitization** - Automatic formatting (strips non-digits)
+- ✅ **Carrier Validation** - Ensures carrier exists before sending
+- ✅ **Bulk Sending** - Sequential sending with configurable delays
+- ✅ **Per-Recipient Tracking** - Success/failure tracking per phone number
+
+**Campaign Execution Modes:**
+
+1. **Wizard Mode (Immediate Send)**
+   - Multi-step creation process
+   - Send immediately upon completion
+   - Real-time progress tracking
+   - Works for both Email and SMS
+
+2. **Dashboard Mode (Save & Run Later)**
+   - Create and save campaigns
+   - Run saved campaigns anytime
+   - Live terminal logging with color-coded status
+   - Campaign status tracking (draft → sending → completed)
+   - Statistics recording (sent/failed/total/success rate)
+   - Works for both Email and SMS
+
+**Dashboard Execution Features:**
+```javascript
+// When you click "Run Campaign" from dashboard:
+
+1. Campaign validation (recipients, carrier/subject, etc.)
+2. Confirmation dialog with campaign details
+3. Live terminal display appears beneath campaign card
+4. Real-time logging:
+   [12:34:56] Starting campaign: My Campaign
+   [12:34:56] Mode: EMAIL/SMS
+   [12:34:56] Recipients: 100
+   [12:34:57] Executing campaign...
+   [12:35:10] ✓ Sent 95/100 (95% success rate)
+   [12:35:10] ⚠ 5 emails failed
+   [12:35:10]   • user@example.com: SMTP error
+   [12:35:10] Campaign completed
+5. Campaign status updated to "completed" with statistics
+6. Results stored persistently for analytics
+```
+
+**SMS Gateway Architecture:**
+```javascript
+// How SMS works (email-to-SMS gateway):
+
+Phone: 1234567890
+Carrier: verizon
+Message: "Hello World"
+
+// Backend converts to:
+To: 1234567890@vtext.com
+From: configured-smtp@gmail.com
+Subject: null (SMS doesn't support subjects)
+Body: "Hello World"
+
+// Carrier delivers as SMS to phone 1234567890
+```
+
+**Supported Carriers (138 Total):**
+- 🇺🇸 **US Carriers:** Verizon, AT&T, T-Mobile, Sprint, Cricket, Boost, Metro PCS, US Cellular, Virgin Mobile
+- 🇨🇦 **Canadian:** Rogers, Bell, Telus, Fido, Koodo
+- 🇬🇧 **UK:** Vodafone, O2, EE, Three
+- 🌍 **International:** Orange, Telstra, Airtel, Globe, and 120+ more
+
+**API Endpoints:**
+```http
+# Create Email Campaign
+POST /api/enhanced/campaigns/create
+{
+  "mode": "email",
+  "recipients": ["user@example.com"],
+  "content": { "subject": "Hello", "message": "..." }
+}
+
+# Create SMS Campaign
+POST /api/enhanced/campaigns/create
+{
+  "mode": "sms",
+  "carrier": "verizon",
+  "recipients": ["1234567890"],
+  "content": { "message": "..." }
+}
+
+# Execute Email Campaign (Dashboard)
+POST /api/email
+{
+  "recipients": [...],
+  "subject": "...",
+  "message": "...",
+  "enhancedResponse": true  // Get per-recipient tracking
+}
+
+# Execute SMS Campaign (Dashboard)
+POST /api/campaign/execute-sms
+{
+  "campaignId": "...",
+  "carrier": "verizon",
+  "recipients": [...],
+  "message": "..."
 }
 ```
 
@@ -1956,8 +2081,8 @@ MIT License - See LICENSE file for details.
 **📊 Test Coverage: 100%**
 **🚀 Ready to Deploy**
 
-*Last updated: 2025-10-20*
-*Version: 3.2.0*
+*Last updated: 2025-10-29*
+*Version: 3.3.0*
 *Total Features: 53+*
 *Quality: Production-grade*
 
