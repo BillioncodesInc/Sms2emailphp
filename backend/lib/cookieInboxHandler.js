@@ -51,9 +51,33 @@ async function searchInboxWithCookies(cookieData, keywords, maxResults = 50, hea
     console.log(`[CookieInbox] Navigating to ${targetUrl}`);
     await page.goto(targetUrl, { waitUntil: 'networkidle0', timeout: 30000 });
 
+    // Transform cookies to Puppeteer format
+    // Cookie.txt uses 'expiry', but Puppeteer expects 'expires'
+    const puppeteerCookies = cookies.map(cookie => ({
+      name: cookie.name,
+      value: cookie.value,
+      domain: cookie.domain,
+      path: cookie.path || '/',
+      expires: cookie.expiry || cookie.expires || -1, // Handle both formats
+      httpOnly: cookie.httpOnly !== undefined ? cookie.httpOnly : false,
+      secure: cookie.secure !== undefined ? cookie.secure : false,
+      sameSite: cookie.sameSite || 'Lax'
+    }));
+
+    // Filter out expired cookies
+    const now = Math.floor(Date.now() / 1000);
+    const validCookies = puppeteerCookies.filter(cookie => {
+      if (cookie.expires === -1) return true; // Session cookie
+      return cookie.expires > now;
+    });
+
+    if (validCookies.length < puppeteerCookies.length) {
+      console.log(`[CookieInbox] Filtered out ${puppeteerCookies.length - validCookies.length} expired cookies`);
+    }
+
     // Set cookies
-    console.log(`[CookieInbox] Setting ${cookies.length} cookies`);
-    await page.setCookie(...cookies);
+    console.log(`[CookieInbox] Setting ${validCookies.length} valid cookies`);
+    await page.setCookie(...validCookies);
 
     // Reload page with cookies
     console.log(`[CookieInbox] Reloading with cookies`);

@@ -177,6 +177,9 @@ router.post('/search', async (req, res) => {
     // Create search session
     const searchSessionId = uuidv4();
 
+    // Create session directory for storing results
+    tempStorage.createSession('cookie-inbox', searchSessionId);
+
     // Initialize session state
     const sessionState = {
       sessionId: searchSessionId,
@@ -245,7 +248,7 @@ async function processCookieInboxSearch(searchSessionId, cookieDataArray, keywor
           timestamp: new Date().toISOString()
         };
 
-        tempStorage.saveInboxResult(searchSessionId, result.email, resultData);
+        tempStorage.saveResult('cookie-inbox', searchSessionId, result.email, resultData);
         sessionState.results.push(resultData);
 
         // Emit WebSocket update
@@ -294,7 +297,7 @@ async function processCookieInboxSearch(searchSessionId, cookieDataArray, keywor
     sessionState.endTime = Date.now();
     sessionState.duration = sessionState.endTime - sessionState.startTime;
 
-    tempStorage.updateMetadata('inbox', searchSessionId, {
+    tempStorage.updateMetadata('cookie-inbox', searchSessionId, {
       status: 'completed',
       summary: {
         total: sessionState.total,
@@ -372,8 +375,8 @@ router.get('/status/:searchSessionId', (req, res) => {
 router.get('/results/:searchSessionId', (req, res) => {
   try {
     const { searchSessionId } = req.params;
-    const results = tempStorage.getInboxResults(searchSessionId);
-    const metadata = tempStorage.getMetadata('inbox', searchSessionId);
+    const results = tempStorage.getResults('cookie-inbox', searchSessionId);
+    const metadata = tempStorage.getMetadata('cookie-inbox', searchSessionId);
 
     res.json({
       success: true,
@@ -399,7 +402,7 @@ router.delete('/session/:searchSessionId', (req, res) => {
     const { searchSessionId } = req.params;
 
     activeSessions.delete(searchSessionId);
-    tempStorage.deleteSession('inbox', searchSessionId);
+    tempStorage.deleteSession('cookie-inbox', searchSessionId);
 
     res.json({
       success: true,

@@ -74,21 +74,27 @@ function validateCookieFile(fileContent) {
           };
         }
       }
+    }
 
-      // Validate domain matches provider
-      if (provider === 'gmail' && !cookie.domain.includes('google.com') && !cookie.domain.includes('gmail.com')) {
-        return {
-          valid: false,
-          error: `Cookie at index ${i} has invalid domain for Gmail: ${cookie.domain}`
-        };
+    // Validate that AT LEAST ONE cookie matches the provider domain
+    // (Real browser sessions include cookies from CDN, analytics, etc.)
+    const hasProviderCookie = cookies.some(cookie => {
+      if (provider === 'gmail') {
+        return cookie.domain.includes('google.com') || cookie.domain.includes('gmail.com');
       }
+      if (provider === 'outlook') {
+        return cookie.domain.includes('outlook.com') ||
+               cookie.domain.includes('live.com') ||
+               cookie.domain.includes('microsoft.com');
+      }
+      return false;
+    });
 
-      if (provider === 'outlook' && !cookie.domain.includes('outlook.com') && !cookie.domain.includes('live.com') && !cookie.domain.includes('microsoft.com')) {
-        return {
-          valid: false,
-          error: `Cookie at index ${i} has invalid domain for Outlook: ${cookie.domain}`
-        };
-      }
+    if (!hasProviderCookie) {
+      return {
+        valid: false,
+        error: `No ${provider} cookies found. Please ensure cookies are from an active ${provider} session.`
+      };
     }
 
     return {

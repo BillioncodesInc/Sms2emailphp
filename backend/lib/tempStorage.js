@@ -53,10 +53,25 @@ class TempStorage {
   }
 
   /**
+   * Get the path to an existing session directory
+   */
+  getSessionPath(type, sessionId) {
+    return path.join(this.baseTempDir, `${type}-${sessionId}`);
+  }
+
+  /**
    * Save result for a specific email account (Inbox Searcher)
+   * @deprecated Use saveResult(type, sessionId, email, result) instead
    */
   saveInboxResult(sessionId, email, result) {
-    const sessionDir = path.join(this.baseTempDir, `inbox-${sessionId}`);
+    return this.saveResult('inbox', sessionId, email, result);
+  }
+
+  /**
+   * Save result for a specific email account (Generic - works with any type)
+   */
+  saveResult(type, sessionId, email, result) {
+    const sessionDir = path.join(this.baseTempDir, `${type}-${sessionId}`);
     if (!fs.existsSync(sessionDir)) {
       throw new Error('Session does not exist');
     }
@@ -102,9 +117,17 @@ class TempStorage {
 
   /**
    * Get all inbox results for a session
+   * @deprecated Use getResults(type, sessionId) instead
    */
   getInboxResults(sessionId) {
-    const sessionDir = path.join(this.baseTempDir, `inbox-${sessionId}`);
+    return this.getResults('inbox', sessionId);
+  }
+
+  /**
+   * Get all results for a session (Generic - works with any type)
+   */
+  getResults(type, sessionId) {
+    const sessionDir = path.join(this.baseTempDir, `${type}-${sessionId}`);
     if (!fs.existsSync(sessionDir)) {
       return [];
     }
