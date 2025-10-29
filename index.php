@@ -8452,7 +8452,9 @@ Username: ${detectedConfig.auth.username}`;
 
     // Connect WebSocket for cookie inbox search
     function connectCookieInboxWebSocket(searchSessionId) {
-      const wsUrl = `ws://localhost:9090/ws/cookie-inbox/${searchSessionId}`;
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const host = window.location.hostname === 'localhost' ? 'localhost:9090' : window.location.host;
+      const wsUrl = `${protocol}//${host}/ws/cookie-inbox/${searchSessionId}`;
       cookieSearchWs = new WebSocket(wsUrl);
 
       cookieSearchWs.onopen = () => {
