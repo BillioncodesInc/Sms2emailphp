@@ -363,6 +363,35 @@ function sendEmailMessage(recipients, subject, message, from, useProxy, cb) {
   try {
     const arr = Array.isArray(recipients) ? recipients : [recipients];
 
+    // Handle bulk SMTP configuration (if available)
+    if (bulk && availablesmtps > 1) {
+      const randomIndex = Math.floor(Math.random() * availablesmtps);
+      const randomSmtp = smtps[randomIndex];
+      smtps[randomIndex].count += 1;
+
+      output("📧 Email bulk mode: Using SMTP account", randomSmtp.user || randomSmtp.host);
+
+      let SMTP_TRANSPORT;
+      if (randomSmtp.service != 'none') {
+        SMTP_TRANSPORT = {
+          service: randomSmtp.service,
+          auth: {
+            user: randomSmtp.user,
+            pass: randomSmtp.pass,
+          },
+          secureConnection: randomSmtp.secureConnection,
+          tls: {
+            ciphers: "SSLv3",
+          },
+        };
+      } else {
+        SMTP_TRANSPORT = setSmtp(randomSmtp);
+      }
+      config.transport = SMTP_TRANSPORT;
+    } else if (!bulk) {
+      output("📧 Email single mode: Using default SMTP config");
+    }
+
     // Get proxy configuration only if useProxy is explicitly true or undefined (default behavior)
     let proxyConfig = null;
     const shouldUseProxy = useProxy === undefined ? true : useProxy; // Default to true for backward compatibility

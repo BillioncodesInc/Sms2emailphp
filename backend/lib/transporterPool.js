@@ -13,7 +13,7 @@ class TransporterPool {
     this.maxPoolSize = options.maxPoolSize || 10;
     this.maxMessagesPerConnection = options.maxMessagesPerConnection || 100;
     this.idleTimeout = options.idleTimeout || 300000; // 5 minutes
-    this.connectionTimeout = options.connectionTimeout || 30000; // 30 seconds
+    this.connectionTimeout = options.connectionTimeout || 10000; // 10 seconds (reduced from 30 for faster proxy failures)
     this.cleanupInterval = null;
     this.debugEnabled = options.debugEnabled || false;
 
@@ -100,6 +100,16 @@ class TransporterPool {
     // Add connection timeout
     if (!config.connectionTimeout) {
       config.connectionTimeout = this.connectionTimeout;
+    }
+
+    // Add socket timeout (for hanging connections)
+    if (!config.socketTimeout) {
+      config.socketTimeout = this.connectionTimeout;
+    }
+
+    // Add greeting timeout (for slow SMTP handshakes)
+    if (!config.greetingTimeout) {
+      config.greetingTimeout = this.connectionTimeout;
     }
 
     // Enable connection pooling in nodemailer
