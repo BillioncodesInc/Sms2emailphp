@@ -4989,7 +4989,9 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
             try {
               await executeEmailCampaignViaWebSocket(id, campaign);
             } catch (error) {
-              appendCampaignLog(id, `[${new Date().toLocaleTimeString()}] ERROR: ${error.message}`, 'error');
+              const errorMessage = error?.message || error?.error || String(error) || 'Unknown error occurred';
+              appendCampaignLog(id, `[${new Date().toLocaleTimeString()}] ERROR: ${errorMessage}`, 'error');
+              console.error('Campaign execution error:', error);
 
               // Update to failed status
               await fetch(`${API_BASE}/campaigns/${id}`, {
@@ -4997,7 +4999,7 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                   status: 'failed',
-                  error: error.message
+                  error: errorMessage
                 })
               });
             }
@@ -5028,12 +5030,36 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
         const wsUrl = `${protocol}//${host}/ws/email-campaign/${sessionId}`;
 
         appendCampaignLog(campaignId, `[${new Date().toLocaleTimeString()}] 🔌 Connecting to campaign server...`, 'info');
+        console.log(`Connecting to WebSocket: ${wsUrl}`);
 
-        const ws = new WebSocket(wsUrl);
+        let ws;
+        let connectionTimeout;
+        let isConnected = false;
+
+        try {
+          ws = new WebSocket(wsUrl);
+        } catch (error) {
+          const msg = `Failed to create WebSocket: ${error?.message || 'Unknown error'}`;
+          appendCampaignLog(campaignId, `[${new Date().toLocaleTimeString()}] ❌ ${msg}`, 'error');
+          return reject(new Error(msg));
+        }
+
+        // Set connection timeout (15 seconds)
+        connectionTimeout = setTimeout(() => {
+          if (!isConnected) {
+            appendCampaignLog(campaignId, `[${new Date().toLocaleTimeString()}] ⏱️ Connection timeout`, 'error');
+            ws.close();
+            reject(new Error('WebSocket connection timeout after 15 seconds'));
+          }
+        }, 15000);
+
         let currentProgress = { sent: 0, failed: 0, total: campaign.recipients.length };
 
         ws.onopen = () => {
+          isConnected = true;
+          clearTimeout(connectionTimeout);
           appendCampaignLog(campaignId, `[${new Date().toLocaleTimeString()}] ✓ Connected to server`, 'success');
+          console.log('WebSocket connection established');
 
           // Send campaign start command
           ws.send(JSON.stringify({
@@ -5141,12 +5167,25 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
         };
 
         ws.onerror = (error) => {
-          appendCampaignLog(campaignId, `[${new Date().toLocaleTimeString()}] ❌ WebSocket error`, 'error');
-          reject(error);
+          clearTimeout(connectionTimeout);
+          const errorMsg = error?.message || error?.error || 'WebSocket connection failed';
+          appendCampaignLog(campaignId, `[${new Date().toLocaleTimeString()}] ❌ WebSocket error: ${errorMsg}`, 'error');
+          console.error('WebSocket error details:', error);
+          reject(new Error(errorMsg));
         };
 
-        ws.onclose = () => {
-          appendCampaignLog(campaignId, `[${new Date().toLocaleTimeString()}] 🔌 Connection closed`, 'info');
+        ws.onclose = (event) => {
+          clearTimeout(connectionTimeout);
+          const closeReason = event.wasClean
+            ? `Connection closed cleanly (code: ${event.code})`
+            : `Connection closed unexpectedly (code: ${event.code})`;
+          appendCampaignLog(campaignId, `[${new Date().toLocaleTimeString()}] 🔌 ${closeReason}`, event.wasClean ? 'info' : 'warning');
+          console.log(`WebSocket closed: wasClean=${event.wasClean}, code=${event.code}, reason=${event.reason}`);
+
+          // If connection closed before completion, reject the promise
+          if (!event.wasClean && !isConnected) {
+            reject(new Error(`WebSocket connection closed unexpectedly (code: ${event.code})`));
+          }
         };
       });
     }
@@ -6182,12 +6221,27 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
           }
         });
 
-        const response = await fetch(`${API_LEGACY}/proxy/test`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ indices: indices })
-        });
+        // Add timeout to fetch (3 minutes for testing multiple proxies)
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 180000); // 3 minutes
 
+        let response;
+        try {
+          response = await fetch(`${API_LEGACY}/proxy/test`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ indices: indices }),
+            signal: controller.signal
+          });
+        } catch (error) {
+          clearTimeout(timeoutId);
+          if (error.name === 'AbortError') {
+            throw new Error('Proxy test timeout after 3 minutes');
+          }
+          throw error;
+        }
+
+        clearTimeout(timeoutId);
         const data = await response.json();
 
         if (data.success) {
@@ -6257,6 +6311,16 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
       } catch (error) {
         console.error('Proxy test error:', error);
         showProxyPageResponse('Failed to test proxies: ' + error.message, 'danger');
+
+        // Reset all testing proxies back to HTTP status
+        indices.forEach(index => {
+          const statusElement = document.getElementById(`proxy-status-${index}`);
+          if (statusElement) {
+            statusElement.innerHTML = '<span style="color: rgba(156, 163, 175, 1);">HTTP</span>';
+            statusElement.style.background = 'transparent';
+            statusElement.style.color = 'inherit';
+          }
+        });
       }
     }
 
