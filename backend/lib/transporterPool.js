@@ -6,6 +6,9 @@
  */
 
 const nodemailer = require('nodemailer');
+const { SocksProxyAgent } = require('socks-proxy-agent');
+const { HttpsProxyAgent } = require('https-proxy-agent');
+const { HttpProxyAgent } = require('http-proxy-agent');
 
 class TransporterPool {
   constructor(options = {}) {
@@ -93,8 +96,45 @@ class TransporterPool {
 
     // Create new transporter with proxy if provided
     const config = { ...smtpConfig };
+
+    // Add proxy agent if proxy is configured
     if (proxyConfig) {
-      config.proxy = this.buildProxyUrl(proxyConfig);
+      const proxyUrl = this.buildProxyUrl(proxyConfig);
+
+      try {
+        // Determine which agent to use based on proxy protocol
+        const isSecure = config.secure !== false && (config.port === 465 || config.service);
+
+        if (proxyConfig.protocol && proxyConfig.protocol.startsWith('socks')) {
+          // Use SOCKS proxy agent for both secure and non-secure connections
+          const agent = new SocksProxyAgent(proxyUrl);
+          if (isSecure) {
+            config.tls = config.tls || {};
+            config.tls.agent = agent;
+          } else {
+            config.agent = agent;
+          }
+
+          if (this.debugEnabled) {
+            console.log(`🧦 Using SOCKS proxy agent: ${proxyUrl}`);
+          }
+        } else {
+          // Use HTTP/HTTPS proxy agent
+          if (isSecure) {
+            config.tls = config.tls || {};
+            config.tls.agent = new HttpsProxyAgent(proxyUrl);
+          } else {
+            config.agent = new HttpProxyAgent(proxyUrl);
+          }
+
+          if (this.debugEnabled) {
+            console.log(`🌐 Using HTTP${isSecure ? 'S' : ''} proxy agent: ${proxyUrl}`);
+          }
+        }
+      } catch (error) {
+        console.error(`❌ Failed to create proxy agent: ${error.message}`);
+        // Continue without proxy
+      }
     }
 
     // Add connection timeout

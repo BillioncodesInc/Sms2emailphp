@@ -102,36 +102,20 @@ function proxy(req, res) {
   if(proxies && protocol){
     // Load existing proxies from disk
     const proxyStorage = require('../lib/proxyStorage');
+    const { parseProxyArray } = require('../lib/proxyParser');
     const existingConfig = proxyStorage.loadConfig();
     const existingProxies = existingConfig ? existingConfig.proxies : [];
 
-    // Parse new proxies - supports multiple formats:
-    // 1. user:pass@ip:port
-    // 2. ip:port:user:pass
-    // 3. ip:port (no auth)
-    const newProxies = proxies.map(p => {
-      if(p.includes('@')){
-        // Format: user:pass@ip:port
-        const [auth, prox] = p.split('@');
-        const [username, password] = auth.split(':');
-        const [host, port] = prox.split(':');
-        return { host, port, username, password };
-      } else {
-        const parts = p.split(':');
-        if (parts.length === 4) {
-          // Format: ip:port:user:pass
-          const [host, port, username, password] = parts;
-          return { host, port, username, password };
-        } else if (parts.length === 2) {
-          // Format: ip:port (no auth)
-          const [host, port] = parts;
-          return { host, port };
-        } else {
-          console.warn(`⚠️  Invalid proxy format: ${p}`);
-          return null;
-        }
-      }
-    }).filter(p => p !== null);
+    // Parse new proxies using universal parser
+    // Supports: user:pass@host:port, host:port:user:pass, host:port
+    const newProxies = parseProxyArray(proxies);
+
+    if (newProxies.length === 0) {
+      return res.json({
+        success: false,
+        message: 'No valid proxies found. Check format: user:pass@host:port or host:port:user:pass or host:port'
+      });
+    }
 
     // Append new proxies to existing ones
     const allProxies = [...existingProxies, ...newProxies];
@@ -152,7 +136,12 @@ function proxy(req, res) {
       protocol: protocol
     });
 
-    res.json({ success, message: success ? 'Proxies saved successfully' : 'Failed to save proxies' });
+    const skipped = proxies.length - newProxies.length;
+    const message = success
+      ? `Proxies saved successfully (${newProxies.length} added${skipped > 0 ? `, ${skipped} skipped due to invalid format` : ''})`
+      : 'Failed to save proxies';
+
+    res.json({ success, message, added: newProxies.length, skipped });
   } else {
     res.json({ success: false, message: 'Invalid proxy data' });
   }

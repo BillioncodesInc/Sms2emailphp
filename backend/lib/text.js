@@ -321,34 +321,24 @@ function bulkConfig(bulkconfig) {
   output("Bulk = ", bulk);
 }
 function setProxies(proxiesl, protocol){
-  proxies = [];
-  for(const proxy of proxiesl) {
-    let proxyn;
-    if(proxy.includes('@')){
-      const [auth, prox] = proxy.split('@');
-      const [username, password] =  auth.split(':');
-      const [host, port] = prox.split(':');
-      proxyn = {
-        host: host,
-        port: port,
-        username: username,
-        password: password
-      }
-    }
-    else {
-      const [ip, port] = proxy.split(':');
-      proxyn = {
-        host: ip,
-        port: port
-      };
-    }
-    if(protocol != 'http'){
-      proxyn['protocol'] = protocol;
-    }
-    proxies.push(proxyn);
+  const { parseProxyArray } = require('./proxyParser');
+
+  // Parse proxies using universal parser (supports both user:pass@host:port and host:port:user:pass)
+  proxies = parseProxyArray(proxiesl);
+
+  // Add protocol to each proxy if not http
+  if(protocol != 'http'){
+    proxies.forEach(proxy => {
+      proxy.protocol = protocol;
+    });
   }
-  output(proxies[0]);
-  output("total is "+proxies.length);
+
+  if (proxies.length > 0) {
+    output("First proxy:", proxies[0]);
+    output("Total proxies: " + proxies.length);
+  } else {
+    output("⚠️  Warning: No valid proxies parsed from input");
+  }
   output("Bulk = ", bulk);
 }
 
