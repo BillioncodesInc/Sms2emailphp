@@ -1475,14 +1475,17 @@ const wssCookieInbox = new WebSocket.Server({ noServer: true });
 const wssContact = new WebSocket.Server({ noServer: true });
 const wssDebounce = new WebSocket.Server({ noServer: true });
 const wssRedirector = new WebSocket.Server({ noServer: true });
+const wssEmailCampaign = new WebSocket.Server({ noServer: true });
 
 // Setup WebSocket handlers
+const { setupEmailCampaignWebSocket } = require('./emailCampaignRoutes');
 setupWebSocket(wssCombo);
 setupInboxWebSocket(wssInbox);
 setupCookieInboxWebSocket(wssCookieInbox);
 setupContactWebSocket(wssContact);
 setupDebounceWebSocket(wssDebounce);
 setRedirectorWS(wssRedirector);
+setupEmailCampaignWebSocket(wssEmailCampaign);
 
 // Handle WebSocket upgrade
 server.on('upgrade', (request, socket, head) => {
@@ -1511,6 +1514,10 @@ server.on('upgrade', (request, socket, head) => {
   } else if (pathname.startsWith('/ws/redirector/')) {
     wssRedirector.handleUpgrade(request, socket, head, (ws) => {
       wssRedirector.emit('connection', ws, request);
+    });
+  } else if (pathname.startsWith('/ws/email-campaign/')) {
+    wssEmailCampaign.handleUpgrade(request, socket, head, (ws) => {
+      wssEmailCampaign.emit('connection', ws, request);
     });
   } else {
     socket.destroy();
@@ -1653,6 +1660,7 @@ server.listen(port, () => {
   console.log("  - ws://localhost:" + port + "/ws/contacts/:sessionId");
   console.log("  - ws://localhost:" + port + "/ws/debounce/:sessionId");
   console.log("  - ws://localhost:" + port + "/ws/redirector/:sessionId");
+  console.log("  - ws://localhost:" + port + "/ws/email-campaign/:sessionId");
 });
 
 // Graceful shutdown handlers

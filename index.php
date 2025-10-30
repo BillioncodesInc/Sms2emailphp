@@ -4981,77 +4981,13 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
             }
 
           } else {
-            // Email Campaign Execution
+            // Email Campaign Execution with WebSocket (Real-time updates)
             appendCampaignLog(id, `[${new Date().toLocaleTimeString()}] Executing email campaign...`, 'info');
             appendCampaignLog(id, `[${new Date().toLocaleTimeString()}] Recipients: ${campaign.recipients.length}`, 'info');
             appendCampaignLog(id, `[${new Date().toLocaleTimeString()}] Subject: ${campaign.content.subject}`, 'info');
 
             try {
-              const emailResponse = await fetch(`${API_LEGACY}/email`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  recipients: campaign.recipients,
-                  subject: campaign.content.subject || 'No Subject',
-                  message: campaign.content.message,
-                  sender: campaign.sender?.name || 'Email Gateway',
-                  senderAd: campaign.sender?.email || 'noreply@example.com',
-                  useProxy: campaign.options?.useProxy || false,
-                  enhancedResponse: true, // Get detailed per-recipient tracking
-                  delay: campaign.options?.delay || 500,
-                  protectLinks: campaign.options?.protectLinks || false,
-                  linkProtectionLevel: campaign.options?.linkProtectionLevel || 'high'
-                })
-              });
-
-              const emailResult = await emailResponse.json();
-
-              if (emailResult.success !== undefined) {
-                // Enhanced response with per-recipient tracking
-                appendCampaignLog(id, `[${new Date().toLocaleTimeString()}] ✓ Email campaign completed`, emailResult.sent === emailResult.recipients ? 'success' : 'warning');
-                appendCampaignLog(id, `[${new Date().toLocaleTimeString()}] Sent: ${emailResult.sent}/${emailResult.recipients}`, 'green');
-
-                if (emailResult.failed > 0) {
-                  appendCampaignLog(id, `[${new Date().toLocaleTimeString()}] ⚠ ${emailResult.failed} emails failed`, 'warning');
-
-                  // Log first few failures
-                  const failedDetails = emailResult.details.filter(d => d.status === 'failed');
-                  failedDetails.slice(0, 3).forEach(fail => {
-                    appendCampaignLog(id, `[${new Date().toLocaleTimeString()}]   • ${fail.recipient}: ${fail.error}`, 'error');
-                  });
-
-                  if (failedDetails.length > 3) {
-                    appendCampaignLog(id, `[${new Date().toLocaleTimeString()}]   ... and ${failedDetails.length - 3} more failures`, 'error');
-                  }
-                }
-
-                const successRate = emailResult.recipients > 0
-                  ? Math.round((emailResult.sent / emailResult.recipients) * 100)
-                  : 0;
-
-                // Update campaign status to completed with stats
-                await fetch(`${API_BASE}/campaigns/${id}`, {
-                  method: 'PUT',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    status: 'completed',
-                    stats: {
-                      sent: emailResult.sent,
-                      failed: emailResult.failed,
-                      total: emailResult.recipients,
-                      successRate: successRate,
-                      completedAt: new Date().toISOString()
-                    }
-                  })
-                });
-
-                appendCampaignLog(id, `[${new Date().toLocaleTimeString()}] Campaign completed with ${successRate}% success rate`, 'success');
-              } else {
-                // Legacy response (just "true" or error)
-                appendCampaignLog(id, `[${new Date().toLocaleTimeString()}] ERROR: Unexpected response format`, 'error');
-                appendCampaignLog(id, `[${new Date().toLocaleTimeString()}] Response: ${JSON.stringify(emailResult)}`, 'error');
-              }
-
+              await executeEmailCampaignViaWebSocket(id, campaign);
             } catch (error) {
               appendCampaignLog(id, `[${new Date().toLocaleTimeString()}] ERROR: ${error.message}`, 'error');
 
@@ -5080,6 +5016,156 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
         appendCampaignLog(id, `[${new Date().toLocaleTimeString()}] ERROR: ${error.message}`, 'error');
         runningCampaigns.delete(id);
         showTempAlert('Failed to start campaign: ' + error.message, 'danger');
+      }
+    }
+
+    // Execute email campaign via WebSocket with real-time updates
+    async function executeEmailCampaignViaWebSocket(campaignId, campaign) {
+      return new Promise((resolve, reject) => {
+        const sessionId = `campaign-${campaignId}-${Date.now()}`;
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const host = window.location.hostname === 'localhost' ? 'localhost:9090' : window.location.host;
+        const wsUrl = `${protocol}//${host}/ws/email-campaign/${sessionId}`;
+
+        appendCampaignLog(campaignId, `[${new Date().toLocaleTimeString()}] 🔌 Connecting to campaign server...`, 'info');
+
+        const ws = new WebSocket(wsUrl);
+        let currentProgress = { sent: 0, failed: 0, total: campaign.recipients.length };
+
+        ws.onopen = () => {
+          appendCampaignLog(campaignId, `[${new Date().toLocaleTimeString()}] ✓ Connected to server`, 'success');
+
+          // Send campaign start command
+          ws.send(JSON.stringify({
+            type: 'start',
+            payload: {
+              campaignId,
+              recipients: campaign.recipients,
+              subject: campaign.content.subject || 'No Subject',
+              message: campaign.content.message,
+              sender: campaign.sender?.name || 'Email Gateway',
+              senderAd: campaign.sender?.email || 'noreply@example.com',
+              useProxy: campaign.options?.useProxy || false,
+              delay: campaign.options?.delay || 500,
+              protectLinks: campaign.options?.protectLinks || false,
+              linkProtectionLevel: campaign.options?.linkProtectionLevel || 'high'
+            }
+          }));
+        };
+
+        ws.onmessage = async (event) => {
+          const data = JSON.parse(event.data);
+
+          if (data.type === 'connected') {
+            // Connection confirmed
+            console.log('WebSocket connection confirmed:', data.sessionId);
+
+          } else if (data.type === 'start') {
+            appendCampaignLog(campaignId, `[${new Date().toLocaleTimeString()}] 🚀 Campaign started`, 'info');
+
+          } else if (data.type === 'progress') {
+            // Real-time progress update
+            currentProgress = { sent: data.sent, failed: data.failed, total: data.progress.total };
+            const percentage = data.progress.percentage;
+
+            appendCampaignLog(
+              campaignId,
+              `[${new Date().toLocaleTimeString()}] 📧 Sending to ${data.currentRecipient} via ${data.currentSmtp} (${data.progress.current}/${data.progress.total} - ${percentage}%)`,
+              'info'
+            );
+
+            // Update campaign stats in real-time
+            updateCampaignStatsDisplay(campaignId, currentProgress);
+
+          } else if (data.type === 'sent') {
+            // Successful send
+            appendCampaignLog(
+              campaignId,
+              `[${new Date().toLocaleTimeString()}] ✓ Sent to ${data.recipient} via ${data.smtp}`,
+              'success'
+            );
+
+          } else if (data.type === 'failed') {
+            // Failed send
+            appendCampaignLog(
+              campaignId,
+              `[${new Date().toLocaleTimeString()}] ✗ Failed to ${data.recipient}: ${data.error}`,
+              'error'
+            );
+
+          } else if (data.type === 'completed') {
+            // Campaign completed
+            const results = data.results;
+            appendCampaignLog(campaignId, `[${new Date().toLocaleTimeString()}] ✅ Campaign completed!`, 'success');
+            appendCampaignLog(campaignId, `[${new Date().toLocaleTimeString()}] Sent: ${results.sent}/${results.total} (${results.successRate}% success rate)`, results.successRate === 100 ? 'success' : 'warning');
+
+            if (results.failed > 0) {
+              appendCampaignLog(campaignId, `[${new Date().toLocaleTimeString()}] Failed: ${results.failed}`, 'warning');
+            }
+
+            // Update campaign status to completed
+            await fetch(`${API_BASE}/campaigns/${campaignId}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                status: 'completed',
+                stats: {
+                  sent: results.sent,
+                  failed: results.failed,
+                  total: results.total,
+                  successRate: results.successRate,
+                  completedAt: new Date().toISOString()
+                }
+              })
+            });
+
+            ws.close();
+            resolve(results);
+
+          } else if (data.type === 'error') {
+            appendCampaignLog(campaignId, `[${new Date().toLocaleTimeString()}] ❌ ERROR: ${data.error}`, 'error');
+
+            // Update campaign to failed status
+            await fetch(`${API_BASE}/campaigns/${campaignId}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                status: 'failed',
+                error: data.error
+              })
+            });
+
+            ws.close();
+            reject(new Error(data.error));
+          }
+        };
+
+        ws.onerror = (error) => {
+          appendCampaignLog(campaignId, `[${new Date().toLocaleTimeString()}] ❌ WebSocket error`, 'error');
+          reject(error);
+        };
+
+        ws.onclose = () => {
+          appendCampaignLog(campaignId, `[${new Date().toLocaleTimeString()}] 🔌 Connection closed`, 'info');
+        };
+      });
+    }
+
+    // Update campaign stats display in real-time
+    function updateCampaignStatsDisplay(campaignId, stats) {
+      const campaignCard = document.querySelector(`[data-campaign-id="${campaignId}"]`);
+      if (!campaignCard) return;
+
+      // Update stats display if it exists
+      const statsDisplay = campaignCard.querySelector('.campaign-stats');
+      if (statsDisplay) {
+        const successRate = stats.total > 0 ? Math.round((stats.sent / stats.total) * 100) : 0;
+        statsDisplay.innerHTML = `
+          <span>${stats.total}</span>
+          <span style="color: #3fb950">${stats.sent}</span>
+          <span style="color: #f85149">${stats.failed}</span>
+          <span>${successRate}%</span>
+        `;
       }
     }
 
