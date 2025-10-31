@@ -4545,22 +4545,22 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
                   <span class="badge bg-${statusColor}" style="margin-left: 10px;">${campaign.status}</span>
                   <span class="badge bg-secondary">${campaign.mode}</span>
                 </h5>
-                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin: 15px 0;">
+                <div class="campaign-stats-container" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin: 15px 0;">
                   <div>
                     <small style="color: rgba(255,255,255,0.6);">Total</small>
-                    <div style="font-size: 1.5rem; font-weight: bold;">${campaign.stats.total || 0}</div>
+                    <div class="stat-total" style="font-size: 1.5rem; font-weight: bold;">${campaign.stats.total || 0}</div>
                   </div>
                   <div>
                     <small style="color: rgba(255,255,255,0.6);">Sent</small>
-                    <div style="font-size: 1.5rem; font-weight: bold; color: var(--success-color);">${campaign.stats.sent || 0}</div>
+                    <div class="stat-sent" style="font-size: 1.5rem; font-weight: bold; color: var(--success-color);">${campaign.stats.sent || 0}</div>
                   </div>
                   <div>
                     <small style="color: rgba(255,255,255,0.6);">Failed</small>
-                    <div style="font-size: 1.5rem; font-weight: bold; color: var(--danger-color);">${campaign.stats.failed || 0}</div>
+                    <div class="stat-failed" style="font-size: 1.5rem; font-weight: bold; color: var(--danger-color);">${campaign.stats.failed || 0}</div>
                   </div>
                   <div>
                     <small style="color: rgba(255,255,255,0.6);">Success Rate</small>
-                    <div style="font-size: 1.5rem; font-weight: bold;">${campaign.stats.successRate || 0}%</div>
+                    <div class="stat-success-rate" style="font-size: 1.5rem; font-weight: bold;">${campaign.stats.successRate || 0}%</div>
                   </div>
                 </div>
                 <small style="color: rgba(255,255,255,0.5);">
@@ -5218,17 +5218,19 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
       const campaignCard = document.querySelector(`[data-campaign-id="${campaignId}"]`);
       if (!campaignCard) return;
 
-      // Update stats display if it exists
-      const statsDisplay = campaignCard.querySelector('.campaign-stats');
-      if (statsDisplay) {
-        const successRate = stats.total > 0 ? Math.round((stats.sent / stats.total) * 100) : 0;
-        statsDisplay.innerHTML = `
-          <span>${stats.total}</span>
-          <span style="color: #3fb950">${stats.sent}</span>
-          <span style="color: #f85149">${stats.failed}</span>
-          <span>${successRate}%</span>
-        `;
-      }
+      // Calculate success rate
+      const successRate = stats.total > 0 ? Math.round((stats.sent / stats.total) * 100) : 0;
+
+      // Update individual stat elements
+      const totalEl = campaignCard.querySelector('.stat-total');
+      const sentEl = campaignCard.querySelector('.stat-sent');
+      const failedEl = campaignCard.querySelector('.stat-failed');
+      const successRateEl = campaignCard.querySelector('.stat-success-rate');
+
+      if (totalEl) totalEl.textContent = stats.total || 0;
+      if (sentEl) sentEl.textContent = stats.sent || 0;
+      if (failedEl) failedEl.textContent = stats.failed || 0;
+      if (successRateEl) successRateEl.textContent = `${successRate}%`;
     }
 
     // Create terminal-style log display beneath campaign
