@@ -4,6 +4,12 @@
  */
 
 const text = require('../lib/text');
+const AttachmentStorage = require('../lib/attachmentStorage');
+const fs = require('fs').promises;
+
+// Initialize attachment storage
+const attachmentStorage = new AttachmentStorage();
+attachmentStorage.initialize().catch(console.error);
 
 // Store active email campaign sessions
 const activeSessions = new Map();
@@ -79,7 +85,8 @@ async function executeEmailCampaign(sessionId, payload, ws) {
     useProxy,
     delay,
     protectLinks,
-    linkProtectionLevel
+    linkProtectionLevel,
+    attachmentIds
   } = payload;
 
   // Validate inputs
@@ -93,6 +100,47 @@ async function executeEmailCampaign(sessionId, payload, ws) {
   }
 
   console.log(`[Email Campaign] Starting campaign ${campaignId} with ${recipients.length} recipients`);
+
+  // Process attachments if provided
+  let htmlContent = null;
+  let emailAttachments = [];
+
+  if (Array.isArray(attachmentIds) && attachmentIds.length > 0) {
+    console.log(`[Email Campaign] Processing ${attachmentIds.length} attachment(s)`);
+
+    for (const attachmentId of attachmentIds) {
+      try {
+        const attachment = attachmentStorage.getAttachment(attachmentId);
+
+        if (!attachment) {
+          console.warn(`[Email Campaign] Attachment ${attachmentId} not found, skipping`);
+          continue;
+        }
+
+        // Check if this attachment should be used as HTML content
+        if (attachment.useAsHtmlContent) {
+          // Read file content as HTML
+          const content = await fs.readFile(attachment.path, 'utf8');
+          htmlContent = content;
+          console.log(`[Email Campaign] Using attachment "${attachment.name}" as HTML content (${content.length} chars)`);
+        } else {
+          // Regular attachment - add to attachments array
+          emailAttachments.push({
+            filename: attachment.originalName || attachment.name,
+            path: attachment.path
+          });
+          console.log(`[Email Campaign] Added regular attachment: "${attachment.name}"`);
+        }
+      } catch (error) {
+        console.error(`[Email Campaign] Error processing attachment ${attachmentId}:`, error);
+        ws.send(JSON.stringify({
+          type: 'warning',
+          message: `Failed to process attachment: ${error.message}`,
+          timestamp: new Date().toISOString()
+        }));
+      }
+    }
+  }
 
   // Send start notification
   ws.send(JSON.stringify({
@@ -151,6 +199,8 @@ async function executeEmailCampaign(sessionId, payload, ws) {
           message,
           senderAd ? `"${sender}" <${senderAd}>` : sender,
           useProxy,
+          htmlContent,
+          emailAttachments,
           (err, info) => {
             if (err) {
               reject(err);

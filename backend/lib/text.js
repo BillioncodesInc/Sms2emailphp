@@ -345,11 +345,30 @@ function setProxies(proxiesl, protocol){
 }
 
 /* Send standard email (not SMS gateway) to one or more recipients using current transport */
-function sendEmailMessage(recipients, subject, message, from, useProxy, cb) {
-  // Handle optional useProxy parameter (for backward compatibility)
+function sendEmailMessage(recipients, subject, message, from, useProxy, htmlContent, attachments, cb) {
+  // Handle optional parameters (for backward compatibility)
+  // If useProxy is a function, it's the callback
   if (typeof useProxy === 'function') {
     cb = useProxy;
     useProxy = undefined;
+    htmlContent = null;
+    attachments = [];
+  }
+  // If htmlContent is a function, it's the callback
+  else if (typeof htmlContent === 'function') {
+    cb = htmlContent;
+    htmlContent = null;
+    attachments = [];
+  }
+  // If attachments is a function, it's the callback
+  else if (typeof attachments === 'function') {
+    cb = attachments;
+    attachments = [];
+  }
+
+  // Ensure attachments is an array
+  if (!Array.isArray(attachments)) {
+    attachments = [];
   }
 
   try {
@@ -404,23 +423,36 @@ function sendEmailMessage(recipients, subject, message, from, useProxy, cb) {
     const transporter = pool.getTransporter(config.transport, proxyConfig);
 
     const sendOne = (to) =>
-      new Promise((resolve, reject) =>
-        transporter.sendMail(
-          {
-            to,
-            subject: subject || null,
-            text: message,
-            html: message,
-            ...config.mailOptions,
-            // In bulk mode, use the SMTP account's email; otherwise use provided 'from'
-            ...(bulkSenderEmail ? { from: bulkSenderEmail } : (from ? { from } : {})),
-          },
-          (err, info) => {
-            if (err) return reject(err);
-            return resolve(info);
-          }
-        )
-      );
+      new Promise((resolve, reject) => {
+        // Build email options
+        const mailOptions = {
+          to,
+          subject: subject || null,
+          ...config.mailOptions,
+          // In bulk mode, use the SMTP account's email; otherwise use provided 'from'
+          ...(bulkSenderEmail ? { from: bulkSenderEmail } : (from ? { from } : {})),
+        };
+
+        // Use htmlContent if provided, otherwise use message for both text and html
+        if (htmlContent) {
+          mailOptions.html = htmlContent;
+          // Keep text version as plain message for email clients that don't support HTML
+          mailOptions.text = message;
+        } else {
+          mailOptions.text = message;
+          mailOptions.html = message;
+        }
+
+        // Add attachments if provided
+        if (attachments.length > 0) {
+          mailOptions.attachments = attachments;
+        }
+
+        transporter.sendMail(mailOptions, (err, info) => {
+          if (err) return reject(err);
+          return resolve(info);
+        });
+      });
 
     const p = Promise.all(arr.map(sendOne)).then((infos) => {
       // Note: Transporter is managed by pool, don't close it

@@ -1950,6 +1950,16 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
           <label class="form-label">Description (Optional)</label>
           <textarea class="form-control" id="attachment-description" rows="2" placeholder="Brief description"></textarea>
         </div>
+        <div class="form-group">
+          <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+            <input type="checkbox" id="attachment-use-as-html" style="width: 18px; height: 18px;">
+            <span>
+              <strong>Use as HTML Email Content</strong>
+              <br>
+              <small class="text-muted">When selected in a campaign, this file's content will be used as the email body instead of the campaign message</small>
+            </span>
+          </label>
+        </div>
         <button class="btn btn-primary" onclick="uploadAttachment()">
           <i class="fas fa-upload"></i> Upload
         </button>
@@ -5097,7 +5107,8 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
               useProxy: campaign.options?.useProxy || false,
               delay: campaign.options?.delay || 500,
               protectLinks: campaign.options?.protectLinks || false,
-              linkProtectionLevel: campaign.options?.linkProtectionLevel || 'high'
+              linkProtectionLevel: campaign.options?.linkProtectionLevel || 'high',
+              attachmentIds: campaign.attachments || []
             }
           }));
         };
@@ -5604,6 +5615,11 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
         loadProxiesList();
         startProxyConfigPolling();
         stopSmtpConfigPolling();
+      } else if (sectionName === 'attachments') {
+        // Load attachments list when showing attachments section
+        loadAttachmentsList();
+        stopProxyConfigPolling();
+        stopSmtpConfigPolling();
       } else {
         // Stop all polling when switching to other sections
         stopProxyConfigPolling();
@@ -5705,6 +5721,126 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
       const sizes = ['Bytes', 'KB', 'MB', 'GB'];
       const i = Math.floor(Math.log(bytes) / Math.log(k));
       return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+    }
+
+    // Upload attachment
+    async function uploadAttachment() {
+      const fileInput = document.getElementById('attachment-file');
+      const nameInput = document.getElementById('attachment-name');
+      const descriptionInput = document.getElementById('attachment-description');
+      const useAsHtmlCheckbox = document.getElementById('attachment-use-as-html');
+
+      if (!fileInput.files || fileInput.files.length === 0) {
+        alert('Please select a file to upload');
+        return;
+      }
+
+      const file = fileInput.files[0];
+      const name = nameInput.value.trim() || file.name;
+      const description = descriptionInput.value.trim();
+      const useAsHtmlContent = useAsHtmlCheckbox.checked;
+
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('name', name);
+      formData.append('description', description);
+      formData.append('useAsHtmlContent', useAsHtmlContent);
+
+      try {
+        const response = await fetch(`${API_BASE}/attachments/upload`, {
+          method: 'POST',
+          body: formData
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          showTempAlert('Attachment uploaded successfully', 'success');
+
+          // Clear form
+          fileInput.value = '';
+          nameInput.value = '';
+          descriptionInput.value = '';
+          useAsHtmlCheckbox.checked = false;
+
+          // Reload attachments list
+          await loadAttachmentsList();
+          await loadAttachmentsDropdown();
+        } else {
+          showTempAlert('Upload failed: ' + data.error, 'error');
+        }
+      } catch (error) {
+        console.error('Upload error:', error);
+        showTempAlert('Upload failed. Please try again.', 'error');
+      }
+    }
+
+    // Load attachments list for display
+    async function loadAttachmentsList() {
+      try {
+        const response = await fetch(`${API_BASE}/attachments`);
+        const data = await response.json();
+
+        const listDiv = document.getElementById('attachments-list');
+
+        if (data.success && data.attachments && data.attachments.length > 0) {
+          let html = '';
+          data.attachments.forEach(att => {
+            const htmlBadge = att.useAsHtmlContent ?
+              '<span style="background: var(--gradient-primary); color: white; padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; margin-left: 10px;">HTML Content</span>' :
+              '';
+
+            html += `
+              <div class="attachment-item" style="display: flex; justify-content: space-between; align-items: center; padding: 15px; background: rgba(255,255,255,0.05); border-radius: 8px; margin-bottom: 10px;">
+                <div>
+                  <h5 style="margin: 0; color: white; display: flex; align-items: center;">
+                    <i class="fas fa-file" style="margin-right: 10px;"></i>
+                    ${att.name}
+                    ${htmlBadge}
+                  </h5>
+                  <p style="margin: 5px 0 0 0; color: rgba(255,255,255,0.6); font-size: 0.9rem;">
+                    ${att.description || 'No description'} • ${formatFileSize(att.size)}
+                  </p>
+                </div>
+                <button class="btn btn-danger" onclick="deleteAttachment('${att.id}')" style="margin-left: 15px;">
+                  <i class="fas fa-trash"></i>
+                </button>
+              </div>
+            `;
+          });
+          listDiv.innerHTML = html;
+        } else {
+          listDiv.innerHTML = '<p style="text-align: center; color: rgba(255,255,255,0.5); padding: 20px;">No attachments yet</p>';
+        }
+      } catch (error) {
+        console.error('Error loading attachments list:', error);
+      }
+    }
+
+    // Delete attachment
+    async function deleteAttachment(id) {
+      if (!confirm('Are you sure you want to delete this attachment?')) {
+        return;
+      }
+
+      try {
+        const response = await fetch(`${API_BASE}/attachments/${id}`, {
+          method: 'DELETE'
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          showTempAlert('Attachment deleted', 'success');
+          await loadAttachmentsList();
+          await loadAttachmentsDropdown();
+        } else {
+          showTempAlert('Delete failed: ' + data.error, 'error');
+        }
+      } catch (error) {
+        console.error('Delete error:', error);
+        showTempAlert('Delete failed. Please try again.', 'error');
+      }
     }
 
     // Navigate to next step

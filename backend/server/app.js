@@ -1358,7 +1358,8 @@ app.post('/api/enhanced/attachments/upload', upload.single('file'), async (req, 
       name: req.body.name || req.file.originalname,
       content: req.file.buffer, // File buffer from multer
       type: req.file.mimetype,
-      description: req.body.description || ''
+      description: req.body.description || '',
+      useAsHtmlContent: req.body.useAsHtmlContent === 'true' || req.body.useAsHtmlContent === true
     };
 
     const result = await attachmentStorage.uploadAttachment(fileData);

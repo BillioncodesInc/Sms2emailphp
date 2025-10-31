@@ -60,7 +60,7 @@ class AttachmentStorage {
    */
   async uploadAttachment(fileData) {
     try {
-      const { name, content, type, description = '' } = fileData;
+      const { name, content, type, description = '', useAsHtmlContent = false } = fileData;
 
       if (!name || !content) {
         throw new Error('Name and content are required');
@@ -102,6 +102,7 @@ class AttachmentStorage {
         type: type || 'application/octet-stream',
         size: stats.size,
         description,
+        useAsHtmlContent, // Flag to indicate if this should be used as email HTML body
         uploadedAt: new Date().toISOString(),
         path: filepath
       };
@@ -132,6 +133,7 @@ class AttachmentStorage {
       type: att.type,
       size: att.size,
       description: att.description,
+      useAsHtmlContent: att.useAsHtmlContent || false,
       uploadedAt: att.uploadedAt
     }));
   }
