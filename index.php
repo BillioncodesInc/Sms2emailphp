@@ -4862,7 +4862,7 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
       // Mode-specific validation
       if (campaign.mode === 'email') {
         if (!campaign.sender?.name) errors.push('Sender name is required');
-        if (!campaign.sender?.email) errors.push('Sender email is required');
+        // Sender email is optional in bulk mode - SMTP account email will be used
         if (!campaign.content?.subject) errors.push('Email subject is required');
         if (!campaign.content?.message) errors.push('Message content is required');
       } else if (campaign.mode === 'sms') {
@@ -5788,14 +5788,7 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
             showTempAlert('Please enter sender name', 'warning');
             return false;
           }
-          // Only validate sender email for email mode
-          if (mode === 'email') {
-            const senderEmail = document.getElementById('page-sender-email').value.trim();
-            if (!senderEmail) {
-              showTempAlert('Please enter sender email', 'warning');
-              return false;
-            }
-          }
+          // Sender email is optional in bulk mode - SMTP account email will be used automatically
           return true;
 
         case 3:
