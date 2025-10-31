@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>WebSocket Connection Test</title>
+  <style>
+    body { font-family: monospace; padding: 20px; background: #1a1a1a; color: #0f0; }
+    #log { background: #000; padding: 15px; border: 1px solid #0f0; margin-top: 20px; }
+    button { background: #0f0; color: #000; padding: 10px 20px; border: none; cursor: pointer; margin: 5px; }
+    .error { color: #f00; }
+    .success { color: #0f0; }
+    .info { color: #00f; }
+  </style>
+</head>
+<body>
+  <h1>🔌 WebSocket Connection Test</h1>
+  <p>Current URL: <span id="currentUrl"></span></p>
+  <p>WebSocket URL: <span id="wsUrl"></span></p>
+
+  <button onclick="testConnection()">Test WebSocket Connection</button>
+  <button onclick="clearLog()">Clear Log</button>
+
+  <div id="log"></div>
+
+  <script>
+    const currentUrl = window.location.href;
+    document.getElementById('currentUrl').textContent = currentUrl;
+
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const host = window.location.hostname === 'localhost' ? 'localhost:9090' : window.location.host;
+    const sessionId = `test-${Date.now()}`;
+    const wsUrl = `${protocol}//${host}/ws/email-campaign/${sessionId}`;
+
+    document.getElementById('wsUrl').textContent = wsUrl;
+
+    function log(message, type = 'info') {
+      const logDiv = document.getElementById('log');
+      const entry = document.createElement('div');
+      entry.className = type;
+      entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+      logDiv.appendChild(entry);
+      logDiv.scrollTop = logDiv.scrollHeight;
+    }
+
+    function clearLog() {
+      document.getElementById('log').innerHTML = '';
+    }
+
+    function testConnection() {
+      log('🔌 Attempting WebSocket connection...', 'info');
+      log(`URL: ${wsUrl}`, 'info');
+
+      let ws;
+      try {
+        ws = new WebSocket(wsUrl);
+      } catch (error) {
+        log(`❌ Failed to create WebSocket: ${error.message}`, 'error');
+        return;
+      }
+
+      const timeout = setTimeout(() => {
+        log('⏱️  Connection timeout after 10 seconds', 'error');
+        ws.close();
+      }, 10000);
+
+      ws.onopen = () => {
+        clearTimeout(timeout);
+        log('✅ WebSocket connected!', 'success');
+
+        // Send test message
+        const testPayload = {
+          type: 'start',
+          payload: {
+            campaignId: 'test-123',
+            recipients: ['test@example.com'],
+            subject: 'Test',
+            message: 'Test message',
+            sender: 'Test',
+            senderAd: 'test@test.com',
+            useProxy: false,
+            delay: 100
+          }
+        };
+
+        log('📤 Sending test payload...', 'info');
+        ws.send(JSON.stringify(testPayload));
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          log(`📨 Received: ${data.type}`, 'success');
+          log(`   Data: ${JSON.stringify(data, null, 2)}`, 'info');
+        } catch (e) {
+          log(`📨 Received: ${event.data}`, 'info');
+        }
+      };
+
+      ws.onerror = (error) => {
+        clearTimeout(timeout);
+        log(`❌ WebSocket error: ${error.message || 'Connection failed'}`, 'error');
+        console.error('WebSocket error details:', error);
+      };
+
+      ws.onclose = (event) => {
+        clearTimeout(timeout);
+        log(`🔌 Connection closed: code=${event.code}, clean=${event.wasClean}`, event.wasClean ? 'info' : 'error');
+        if (event.reason) {
+          log(`   Reason: ${event.reason}`, 'info');
+        }
+      };
+    }
+
+    // Auto-test on load
+    log('Page loaded. Click "Test WebSocket Connection" to start.', 'info');
+  </script>
+</body>
+</html>
