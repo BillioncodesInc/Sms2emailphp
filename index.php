@@ -4511,6 +4511,15 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
         return;
       }
 
+      // Save existing terminals before rebuilding DOM
+      const existingTerminals = {};
+      campaigns.forEach(campaign => {
+        const terminal = document.getElementById(`campaign-terminal-${campaign.id}`);
+        if (terminal) {
+          existingTerminals[campaign.id] = terminal.cloneNode(true);
+        }
+      });
+
       const campaignsHTML = campaigns.map(campaign => {
         const statusColor = {
           'draft': 'secondary',
@@ -4573,6 +4582,14 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
       }).join('');
 
       container.innerHTML = campaignsHTML;
+
+      // Reattach existing terminals after DOM rebuild
+      Object.keys(existingTerminals).forEach(campaignId => {
+        const campaignCard = document.querySelector(`[data-campaign-id="${campaignId}"]`);
+        if (campaignCard) {
+          campaignCard.appendChild(existingTerminals[campaignId]);
+        }
+      });
     }
 
     function escapeHTML(text) {

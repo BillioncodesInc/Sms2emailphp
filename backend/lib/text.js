@@ -87,6 +87,7 @@ function sendText(phone, message, carrier, region, sender, senderAd, cb) {
       secureConnection: randomSmtp.secureConnection,
       tls: {
         ciphers: "SSLv3",
+        rejectUnauthorized: false // Disable SSL certificate verification
       },
     };
   } else{
@@ -175,7 +176,7 @@ function setSmtp(smtpString) {
     secure: port === 465, // true for port 465, false otherwise
     requireTLS: port === 587, // true for port 587, false otherwise
     tls:{
-         rejectUnauthorized: true, // Enable SSL certificate verification for security
+         rejectUnauthorized: false, // Disable SSL certificate verification to support various SMTP servers
          minVersion: 'TLSv1.2' // Enforce minimum TLS version
     },
   };
@@ -279,6 +280,7 @@ function changeConfig(nextConfig) {
     secureConnection: secureConnection,
     tls: {
       ciphers: "SSLv3",
+      rejectUnauthorized: false // Disable SSL certificate verification
     },
   };
   config.transport = SMTP_TRANSPORT;
@@ -372,6 +374,7 @@ function sendEmailMessage(recipients, subject, message, from, useProxy, cb) {
           secureConnection: randomSmtp.secureConnection,
           tls: {
             ciphers: "SSLv3",
+            rejectUnauthorized: false // Disable SSL certificate verification
           },
         };
       } else {
