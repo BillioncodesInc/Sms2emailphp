@@ -1265,8 +1265,11 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
                   <input type="text" class="form-control" id="page-sender-name" required placeholder="Your Name or Company">
                 </div>
                 <div class="col-md-6 mb-3" id="sender-email-group">
-                  <label class="form-label">Sender Email *</label>
-                  <input type="email" class="form-control" id="page-sender-email" placeholder="sender@example.com">
+                  <label class="form-label">Sender Email</label>
+                  <input type="email" class="form-control" id="page-sender-email" placeholder="Leave empty to use SMTP account email">
+                  <small class="form-text" style="color: rgba(255,255,255,0.6); font-size: 11px;">
+                    In bulk SMTP mode, the SMTP account's email will be used automatically
+                  </small>
                 </div>
               </div>
             </div>
@@ -1435,8 +1438,11 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
                     <input type="text" class="form-control" id="modal-sender-name" required placeholder="Your Name or Company" style="padding: 12px;">
                   </div>
                   <div class="col-md-6 mb-3" id="modal-sender-email-group">
-                    <label class="form-label" style="font-weight: 600; margin-bottom: 8px;">Sender Email *</label>
-                    <input type="email" class="form-control" id="modal-sender-email" placeholder="sender@example.com" style="padding: 12px;">
+                    <label class="form-label" style="font-weight: 600; margin-bottom: 8px;">Sender Email</label>
+                    <input type="email" class="form-control" id="modal-sender-email" placeholder="Leave empty to use SMTP account email" style="padding: 12px;">
+                    <small class="form-text" style="color: rgba(255,255,255,0.6); font-size: 11px; margin-top: 4px;">
+                      In bulk SMTP mode, the SMTP account's email will be used automatically as sender
+                    </small>
                   </div>
                   <div class="col-md-6 mb-3" id="modal-carrier-group" style="display: none;">
                     <label class="form-label" style="font-weight: 600; margin-bottom: 8px;">SMS Carrier *</label>
@@ -4611,7 +4617,7 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
         carrierGroup.style.display = 'none';
         subjectGroup.style.display = 'block';
         recipientsLabel.textContent = 'Email Addresses (one per line) *';
-        document.getElementById('modal-sender-email').required = true;
+        document.getElementById('modal-sender-email').required = false; // Optional in bulk mode
         document.getElementById('modal-campaign-subject').required = true;
         document.getElementById('modal-campaign-carrier').required = false;
       } else {

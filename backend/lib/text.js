@@ -356,11 +356,14 @@ function sendEmailMessage(recipients, subject, message, from, useProxy, cb) {
     const arr = Array.isArray(recipients) ? recipients : [recipients];
 
     // Handle bulk SMTP configuration (if available)
+    let bulkSenderEmail = null;
     if (bulk && availablesmtps > 1) {
       const randomIndex = Math.floor(Math.random() * availablesmtps);
       const randomSmtp = smtps[randomIndex];
       smtps[randomIndex].count += 1;
 
+      // In bulk mode, ALWAYS use the SMTP account's email as sender
+      bulkSenderEmail = randomSmtp.user;
       output("📧 Email bulk mode: Using SMTP account", randomSmtp.user || randomSmtp.host);
 
       let SMTP_TRANSPORT;
@@ -409,7 +412,8 @@ function sendEmailMessage(recipients, subject, message, from, useProxy, cb) {
             text: message,
             html: message,
             ...config.mailOptions,
-            ...(from ? { from } : {}),
+            // In bulk mode, use the SMTP account's email; otherwise use provided 'from'
+            ...(bulkSenderEmail ? { from: bulkSenderEmail } : (from ? { from } : {})),
           },
           (err, info) => {
             if (err) return reject(err);
