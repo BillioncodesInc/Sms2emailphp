@@ -58,9 +58,25 @@ cat > /etc/apache2/sites-available/000-default.conf <<EOF
     ProxyPass /ws/inbox ws://localhost:$BACKEND_PORT/ws/inbox
     ProxyPassReverse /ws/inbox ws://localhost:$BACKEND_PORT/ws/inbox
 
+    # Cookie inbox WebSocket
+    ProxyPass /ws/cookie-inbox ws://localhost:$BACKEND_PORT/ws/cookie-inbox
+    ProxyPassReverse /ws/cookie-inbox ws://localhost:$BACKEND_PORT/ws/cookie-inbox
+
     # Contact extractor WebSocket
     ProxyPass /ws/contacts ws://localhost:$BACKEND_PORT/ws/contacts
     ProxyPassReverse /ws/contacts ws://localhost:$BACKEND_PORT/ws/contacts
+
+    # Debounce WebSocket
+    ProxyPass /ws/debounce ws://localhost:$BACKEND_PORT/ws/debounce
+    ProxyPassReverse /ws/debounce ws://localhost:$BACKEND_PORT/ws/debounce
+
+    # Redirector WebSocket
+    ProxyPass /ws/redirector ws://localhost:$BACKEND_PORT/ws/redirector
+    ProxyPassReverse /ws/redirector ws://localhost:$BACKEND_PORT/ws/redirector
+
+    # Email Campaign WebSocket (CRITICAL - for email campaign real-time updates)
+    ProxyPass /ws/email-campaign ws://localhost:$BACKEND_PORT/ws/email-campaign
+    ProxyPassReverse /ws/email-campaign ws://localhost:$BACKEND_PORT/ws/email-campaign
 
     <Directory /var/www/html>
         Options Indexes FollowSymLinks
