@@ -2972,6 +2972,28 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
         <p class="subtitle">Process and manage redirector URL lists for campaigns</p>
       </div>
 
+      <!-- Redirector Packs Info Banner -->
+      <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; border-radius: 12px; margin-bottom: 25px; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);">
+        <div style="display: flex; align-items: center; gap: 15px;">
+          <div style="font-size: 2.5rem;">
+            <i class="fas fa-archive"></i>
+          </div>
+          <div style="flex: 1;">
+            <h4 style="margin: 0 0 8px 0; color: white; font-weight: 600;">
+              <i class="fas fa-info-circle"></i> Need Redirector URLs?
+            </h4>
+            <p style="margin: 0 0 12px 0; color: rgba(255,255,255,0.95); font-size: 0.95rem;">
+              Get pre-collected redirector packs from the URLTeam Web Crawls archive. These contain thousands of verified short URLs from various services.
+            </p>
+            <a href="https://archive.org/details/UrlteamWebCrawls" target="_blank" rel="noopener noreferrer"
+               style="display: inline-flex; align-items: center; gap: 8px; background: white; color: #667eea; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-weight: 600; transition: all 0.3s ease; box-shadow: 0 2px 8px rgba(0,0,0,0.2);">
+              <i class="fas fa-external-link-alt"></i>
+              Visit URLTeam Archive
+            </a>
+          </div>
+        </div>
+      </div>
+
       <!-- Create New List Card -->
       <div class="card">
         <div class="card-header">
