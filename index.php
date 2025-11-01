@@ -1294,7 +1294,7 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
                   <i class="fas fa-magic"></i> Suggest with AI
                 </button>
               </div>
-              <div class="mb-3">
+              <div class="mb-3" id="attachments-group">
                 <label class="form-label">Attachments (Optional)</label>
                 <select class="form-control" id="page-campaign-attachments" multiple style="height: 100px;">
                   <option value="">Loading attachments...</option>
@@ -5669,22 +5669,25 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
       const senderEmailGroup = document.getElementById('sender-email-group');
       const subjectGroup = document.getElementById('subject-group');
       const carrierGroup = document.getElementById('carrier-group');
+      const attachmentsGroup = document.getElementById('attachments-group');
       const recipientsLabel = document.getElementById('recipients-label');
       const recipientsHint = document.getElementById('recipients-hint');
       const recipientsField = document.getElementById('page-campaign-recipients');
 
       if (mode === 'sms') {
-        // SMS Mode: Hide email/subject, show carrier
+        // SMS Mode: Hide email/subject/attachments, show carrier
         senderEmailGroup.style.display = 'none';
         subjectGroup.style.display = 'none';
+        attachmentsGroup.style.display = 'none';
         carrierGroup.style.display = 'block';
         recipientsLabel.textContent = 'Phone Numbers *';
         recipientsHint.textContent = 'One phone number per line (10 digits)';
         recipientsField.placeholder = '1234567890\n9876543210\n5551234567';
       } else {
-        // Email Mode: Show email/subject, hide carrier
+        // Email Mode: Show email/subject/attachments, hide carrier
         senderEmailGroup.style.display = 'block';
         subjectGroup.style.display = 'block';
+        attachmentsGroup.style.display = 'block';
         carrierGroup.style.display = 'none';
         recipientsLabel.textContent = 'Recipients List *';
         recipientsHint.textContent = 'One email per line';
