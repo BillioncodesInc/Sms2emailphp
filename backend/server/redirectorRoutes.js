@@ -170,9 +170,11 @@ async function testRedirectUrl(url, expectedTarget) {
   try {
     // Clean expected target for comparison (remove protocol and trailing slashes)
     const cleanTarget = expectedTarget.replace(/^https?:\/\//, '').replace(/\/+$/, '').toLowerCase();
+    // Extract just the domain from target (before first /)
+    const targetDomain = cleanTarget.split('/')[0];
 
     const response = await axios.get(url, {
-      timeout: 5000,
+      timeout: 10000, // Increased timeout to 10 seconds for slow redirects
       maxRedirects: 10,
       validateStatus: (status) => status < 500, // Accept redirects and success
       headers: {
@@ -183,9 +185,16 @@ async function testRedirectUrl(url, expectedTarget) {
     // Get the final URL after all redirects
     const finalUrl = response.request?.res?.responseUrl || response.config.url;
     const cleanFinal = finalUrl.replace(/^https?:\/\//, '').replace(/\/+$/, '').toLowerCase();
+    // Extract domain from final URL (before first /)
+    const finalDomain = cleanFinal.split('/')[0];
 
-    // Check if final URL contains the expected target
-    const redirectsCorrectly = cleanFinal.includes(cleanTarget) || cleanTarget.includes(cleanFinal.split('/')[0]);
+    // Strict validation: Check if the final domain exactly matches or is a subdomain of target
+    // This prevents false positives like "example.com" matching "malicious-example.com"
+    const redirectsCorrectly =
+      finalDomain === targetDomain || // Exact match
+      finalDomain.endsWith('.' + targetDomain) || // Subdomain (www.example.com matches example.com)
+      targetDomain.endsWith('.' + finalDomain) || // Target is subdomain (example.com matches www.example.com)
+      cleanFinal.startsWith(cleanTarget); // Full path match
 
     return {
       valid: redirectsCorrectly,
@@ -194,15 +203,22 @@ async function testRedirectUrl(url, expectedTarget) {
       finalUrl: finalUrl,
       redirectsTo: cleanFinal,
       expectedTarget: cleanTarget,
-      error: redirectsCorrectly ? null : 'Does not redirect to target URL'
+      error: redirectsCorrectly ? null : `Does not redirect to target. Final: ${finalDomain}, Expected: ${targetDomain}`
     };
   } catch (error) {
     // Check if it's a redirect error with a final URL
     if (error.response) {
       const finalUrl = error.request?.res?.responseUrl || error.config?.url || url;
       const cleanFinal = finalUrl.replace(/^https?:\/\//, '').replace(/\/+$/, '').toLowerCase();
+      const finalDomain = cleanFinal.split('/')[0];
       const cleanTarget = expectedTarget.replace(/^https?:\/\//, '').replace(/\/+$/, '').toLowerCase();
-      const redirectsCorrectly = cleanFinal.includes(cleanTarget) || cleanTarget.includes(cleanFinal.split('/')[0]);
+      const targetDomain = cleanTarget.split('/')[0];
+
+      const redirectsCorrectly =
+        finalDomain === targetDomain ||
+        finalDomain.endsWith('.' + targetDomain) ||
+        targetDomain.endsWith('.' + finalDomain) ||
+        cleanFinal.startsWith(cleanTarget);
 
       return {
         valid: redirectsCorrectly,
@@ -211,7 +227,7 @@ async function testRedirectUrl(url, expectedTarget) {
         finalUrl: finalUrl,
         redirectsTo: cleanFinal,
         expectedTarget: cleanTarget,
-        error: redirectsCorrectly ? null : 'Does not redirect to target URL'
+        error: redirectsCorrectly ? null : `Does not redirect to target. Final: ${finalDomain}, Expected: ${targetDomain}`
       };
     }
 

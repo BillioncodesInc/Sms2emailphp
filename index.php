@@ -9756,6 +9756,10 @@ Username: ${detectedConfig.auth.username}`;
     }
 
     // Save redirector list
+    // Global variable to store current redirector session
+    let currentRedirectorSession = null;
+    let redirectorWs = null;
+
     async function saveRedirectorList() {
       const name = document.getElementById('redirectorListName').value.trim();
       const rawText = document.getElementById('redirectorRawInput').value.trim();
@@ -9777,28 +9781,173 @@ Username: ${detectedConfig.auth.username}`;
       }
 
       try {
+        // Show processing status
+        showTempAlert('Processing redirectors with validation...', 'info');
+
+        // Step 1: Start streaming process with validation
+        const response = await fetch(`${API_BASE}/redirector/process/stream`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            rawText,
+            targetLink,
+            testUrls: true // Enable URL validation
+          })
+        });
+
+        const result = await response.json();
+
+        if (!result.success) {
+          showTempAlert('Error: ' + result.error, 'error');
+          return;
+        }
+
+        currentRedirectorSession = result.sessionId;
+
+        // Step 2: Connect to WebSocket for real-time updates
+        connectRedirectorWebSocket(result.sessionId, name);
+
+      } catch (error) {
+        console.error('Save error:', error);
+        showTempAlert('Error processing redirectors: ' + error.message, 'error');
+      }
+    }
+
+    // Connect to WebSocket for real-time redirector processing updates
+    function connectRedirectorWebSocket(sessionId, listName) {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const host = window.location.host;
+      const wsUrl = `${protocol}//${host}/ws/redirector/${sessionId}`;
+
+      console.log(`Connecting to redirector WebSocket: ${wsUrl}`);
+
+      redirectorWs = new WebSocket(wsUrl);
+
+      // Create progress container if not exists
+      let progressContainer = document.getElementById('redirector-progress-container');
+      if (!progressContainer) {
+        progressContainer = document.createElement('div');
+        progressContainer.id = 'redirector-progress-container';
+        progressContainer.style.cssText = 'margin-top: 20px; padding: 20px; background: rgba(0,0,0,0.3); border-radius: 8px;';
+        document.querySelector('#redirectors-section .card').appendChild(progressContainer);
+      }
+
+      redirectorWs.onopen = () => {
+        console.log('Redirector WebSocket connected');
+        progressContainer.innerHTML = `
+          <h5 style="color: #3498db;"><i class="fas fa-cog fa-spin"></i> Processing Redirectors</h5>
+          <div id="redirector-phase-message" style="margin: 10px 0; color: rgba(255,255,255,0.8);"></div>
+          <div id="redirector-progress-bar" style="background: rgba(255,255,255,0.1); height: 30px; border-radius: 15px; overflow: hidden; margin: 15px 0;">
+            <div id="redirector-progress-fill" style="height: 100%; background: linear-gradient(90deg, #667eea 0%, #764ba2 100%); width: 0%; transition: width 0.3s; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold;"></div>
+          </div>
+          <div id="redirector-stats" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-top: 15px;">
+            <div style="text-align: center;">
+              <div style="font-size: 0.9rem; color: rgba(255,255,255,0.6);">Processed</div>
+              <div id="redirector-processed" style="font-size: 1.8rem; font-weight: bold; color: #3498db;">0</div>
+            </div>
+            <div style="text-align: center;">
+              <div style="font-size: 0.9rem; color: rgba(255,255,255,0.6);">Valid</div>
+              <div id="redirector-valid" style="font-size: 1.8rem; font-weight: bold; color: #2ecc71;">0</div>
+            </div>
+            <div style="text-align: center;">
+              <div style="font-size: 0.9rem; color: rgba(255,255,255,0.6);">Invalid</div>
+              <div id="redirector-invalid" style="font-size: 1.8rem; font-weight: bold; color: #e74c3c;">0</div>
+            </div>
+            <div style="text-align: center;">
+              <div style="font-size: 0.9rem; color: rgba(255,255,255,0.6);">Total</div>
+              <div id="redirector-total" style="font-size: 1.8rem; font-weight: bold; color: rgba(255,255,255,0.9);">0</div>
+            </div>
+          </div>
+          <div id="redirector-current-url" style="margin-top: 15px; padding: 10px; background: rgba(0,0,0,0.2); border-radius: 6px; font-size: 0.85rem; color: rgba(255,255,255,0.7); word-break: break-all;"></div>
+        `;
+      };
+
+      redirectorWs.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+
+        if (data.type === 'phase') {
+          document.getElementById('redirector-phase-message').textContent = data.message;
+          if (data.stats) {
+            document.getElementById('redirector-total').textContent = data.stats.final || 0;
+          }
+        } else if (data.type === 'progress') {
+          // Update progress bar
+          const percent = data.percent || 0;
+          const progressFill = document.getElementById('redirector-progress-fill');
+          progressFill.style.width = percent + '%';
+          progressFill.textContent = percent + '%';
+
+          // Update stats
+          document.getElementById('redirector-processed').textContent = data.current || 0;
+          document.getElementById('redirector-valid').textContent = data.valid || 0;
+          document.getElementById('redirector-invalid').textContent = data.invalid || 0;
+
+          // Update current URL being tested
+          const currentUrlDiv = document.getElementById('redirector-current-url');
+          const statusIcon = data.valid ? '✓' : '✗';
+          const statusColor = data.valid ? '#2ecc71' : '#e74c3c';
+          currentUrlDiv.innerHTML = `
+            <span style="color: ${statusColor}; font-weight: bold;">${statusIcon}</span>
+            <strong>Testing:</strong> ${data.url}<br>
+            ${data.finalUrl ? `<strong>Final URL:</strong> ${data.finalUrl}<br>` : ''}
+            ${data.error ? `<strong style="color: #e74c3c;">Error:</strong> ${data.error}` : ''}
+          `;
+        } else if (data.type === 'complete') {
+          document.getElementById('redirector-phase-message').innerHTML = `
+            <span style="color: #2ecc71;"><i class="fas fa-check-circle"></i> Processing Complete!</span>
+          `;
+
+          // Show final stats
+          showTempAlert(`Processing complete! Valid: ${data.stats.valid}, Invalid: ${data.stats.invalid}`, 'success');
+
+          // Step 3: Save the validated list
+          saveValidatedRedirectorList(sessionId, listName);
+        } else if (data.type === 'error') {
+          showTempAlert('Error: ' + data.message, 'error');
+          progressContainer.remove();
+        }
+      };
+
+      redirectorWs.onerror = (error) => {
+        console.error('Redirector WebSocket error:', error);
+        showTempAlert('WebSocket connection error', 'error');
+      };
+
+      redirectorWs.onclose = () => {
+        console.log('Redirector WebSocket closed');
+      };
+    }
+
+    // Save validated redirector list
+    async function saveValidatedRedirectorList(sessionId, listName) {
+      try {
         const response = await fetch(`${API_BASE}/redirector/lists`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, rawText, targetLink })
+          body: JSON.stringify({
+            name: listName,
+            sessionId: sessionId,
+            saveOnlyValid: true // Only save validated redirectors
+          })
         });
 
         const result = await response.json();
 
         if (result.success) {
-          alert(`✅ Redirector list saved!\n\nName: ${name}\nRedirectors: ${result.list.stats.final}\nTarget: ${targetLink}`);
+          showTempAlert(`✅ List saved: ${result.list.stats.saved} valid redirectors`, 'success');
 
-          // Clear form
+          // Clear form and progress
           clearRedirectorForm();
+          document.getElementById('redirector-progress-container')?.remove();
 
           // Reload lists
           await loadRedirectorLists();
         } else {
-          alert('Error: ' + result.error);
+          showTempAlert('Error saving list: ' + result.error, 'error');
         }
       } catch (error) {
-        console.error('Save error:', error);
-        alert('Error saving list: ' + error.message);
+        console.error('Save validated list error:', error);
+        showTempAlert('Error saving list: ' + error.message, 'error');
       }
     }
 
