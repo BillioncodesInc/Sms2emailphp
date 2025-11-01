@@ -8189,17 +8189,21 @@ Username: ${detectedConfig.auth.username}`;
 
         const statusElement = document.getElementById('inboxProxyStatus');
         const startButton = document.querySelector('#inbox-searcher-section button[onclick="startInboxSearch()"]');
+        const useProxiesCheckbox = document.getElementById('inboxUseProxies');
 
         if (result.hasProxies) {
           statusElement.innerHTML = `<span style="color: #2ecc71;">✓ Proxies configured (${result.proxyCount} proxies available)</span>`;
+          // Always enable start button - proxy usage is optional based on checkbox
           startButton.disabled = false;
         } else {
-          statusElement.innerHTML = '<span style="color: #e74c3c;">✗ No proxies configured. Please add proxies in the Proxies section.</span>';
-          startButton.disabled = true;
+          statusElement.innerHTML = '<span style="color: #e67e22;">⚠ No proxies configured. <a href="#" onclick="switchSection(\'proxies\'); return false;" style="color: #667eea; text-decoration: underline;">Configure proxies</a> for IP protection.</span>';
+          // Still enable start button - proxies are optional
+          startButton.disabled = false;
         }
       } catch (error) {
         console.error('Failed to check proxy status:', error);
         document.getElementById('inboxProxyStatus').innerHTML = '<span style="color: #e67e22;">⚠ Failed to check proxy status</span>';
+        // Don't disable button on error
       }
     }
 
@@ -8238,12 +8242,15 @@ Username: ${detectedConfig.auth.username}`;
         return;
       }
 
+      // Get proxy preference
+      const useProxies = document.getElementById('inboxUseProxies').checked;
+
       try {
         // Start search
         const response = await fetch(`${API_BASE_URL}/inbox/search`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ smtpList, keywords })
+          body: JSON.stringify({ smtpList, keywords, useProxies })
         });
 
         const result = await response.json();
