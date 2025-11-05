@@ -1374,8 +1374,8 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
               </div>
               <div class="mb-3">
                 <label class="form-label">Send Delay (ms)</label>
-                <input type="number" class="form-control" id="page-send-delay" value="500" min="0">
-                <small class="text-muted">Delay between each email (milliseconds)</small>
+                <input type="number" class="form-control" id="page-send-delay" value="100" min="0">
+                <small class="text-muted">Delay between each email (milliseconds) - Lower = Faster</small>
               </div>
             </div>
           </div>
@@ -1539,7 +1539,7 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
                   </div>
                   <div class="col-md-4 mb-3">
                     <label class="form-label" style="font-weight: 600; margin-bottom: 8px;">⏱️ Send Delay (ms)</label>
-                    <input type="number" class="form-control" id="modal-send-delay" value="500" min="0" style="padding: 12px;">
+                    <input type="number" class="form-control" id="modal-send-delay" value="100" min="0" style="padding: 12px;">
                   </div>
                 </div>
               </div>
@@ -1768,7 +1768,7 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
           <div class="collapse-content" id="send-options-section">
             <div class="form-group" style="margin-top: 15px;">
               <label class="form-label">Delay Between Sends (milliseconds)</label>
-              <input type="number" class="form-control" id="send-delay" value="500" min="0" step="100">
+              <input type="number" class="form-control" id="send-delay" value="100" min="0" step="100">
             </div>
             <div class="form-group">
               <label class="form-label">Priority</label>
@@ -2038,11 +2038,12 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
             <div class="col-md-4">
               <label class="form-label">Threads</label>
               <select class="form-select" id="comboThreads">
-                <option value="1">1 thread</option>
-                <option value="3">3 threads</option>
-                <option value="5" selected>5 threads</option>
+                <option value="1">1 thread (Slowest)</option>
+                <option value="5">5 threads</option>
                 <option value="10">10 threads</option>
-                <option value="20">20 threads</option>
+                <option value="20" selected>20 threads (Default)</option>
+                <option value="30">30 threads (Faster)</option>
+                <option value="50">50 threads (Fastest)</option>
               </select>
             </div>
             <div class="col-md-4">
@@ -6075,7 +6076,7 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
     // Reset campaign form
     function resetCampaignForm() {
       document.getElementById('newCampaignPageForm').reset();
-      document.getElementById('page-send-delay').value = '500';
+      document.getElementById('page-send-delay').value = '100'; // Optimized for faster sending
       document.getElementById('page-protect-links').checked = true;
     }
 

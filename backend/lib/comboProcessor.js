@@ -17,7 +17,7 @@ const EventEmitter = require('events');
 class ComboProcessor extends EventEmitter {
   constructor(options = {}) {
     super();
-    this.threads = options.threads || 5;
+    this.threads = options.threads || 20; // Increased from 5 to 20 for faster validation
     this.timeout = options.timeout || 10000;
     this.skipBlacklist = options.skipBlacklist || false;
     this.retryFailed = options.retryFailed || false;

@@ -64,11 +64,11 @@ class SMTPValidatorAdvanced {
       'mcafee'
     ];
 
-    // Connection timeout (CRITICAL: Reduced to match Python script speed)
-    this.CONNECTION_TIMEOUT = 3000;   // 3s instead of 10s (Python uses fast timeouts)
-    this.SOCKET_TIMEOUT = 5000;        // 5s instead of 15s
-    this.DNS_TIMEOUT = 2000;           // 2s for DNS resolution
-    this.SMTP_RESPONSE_TIMEOUT = 3000; // 3s for SMTP responses
+    // Connection timeout (OPTIMIZED: Further reduced for maximum speed)
+    this.CONNECTION_TIMEOUT = 2000;   // 2s for faster connection attempts
+    this.SOCKET_TIMEOUT = 3000;       // 3s for faster socket operations
+    this.DNS_TIMEOUT = 1500;          // 1.5s for DNS resolution
+    this.SMTP_RESPONSE_TIMEOUT = 2000; // 2s for SMTP responses
   }
 
   /**
