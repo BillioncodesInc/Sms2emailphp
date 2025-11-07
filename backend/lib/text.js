@@ -6,8 +6,33 @@ const { getPool } = require("./transporterPool.js");
 const carriers = require("./carriers.js");
 const providers = require("./providers.js");
 const smtpStorage = require("./smtpStorage.js");
+const securityConfig = require("./securityConfig");
 
 let config = require("./config.js");
+
+const defaultCiphers =
+  (config.transport && config.transport.tls && config.transport.tls.ciphers) || 'SSLv3';
+
+function getTlsPolicy() {
+  return securityConfig.getTlsPolicy();
+}
+
+function allowInvalidCertificates() {
+  return Boolean(getTlsPolicy().allowInvalidCertificates);
+}
+
+function getMinTlsVersion() {
+  return getTlsPolicy().minVersion || 'TLSv1.2';
+}
+
+function getTlsOptions(overrides = {}) {
+  return {
+    ciphers: defaultCiphers,
+    rejectUnauthorized: !allowInvalidCertificates(),
+    minVersion: getMinTlsVersion(),
+    ...overrides
+  };
+}
 
 //----------------------------------------------------------------
 /*
@@ -85,10 +110,7 @@ function sendText(phone, message, carrier, region, sender, senderAd, cb) {
         pass: randomSmtp.pass,
       },
       secureConnection: randomSmtp.secureConnection,
-      tls: {
-        ciphers: "SSLv3",
-        rejectUnauthorized: false // Disable SSL certificate verification
-      },
+      tls: getTlsOptions()
     };
   } else{
     SMTP_TRANSPORT = setSmtp(randomSmtp);
@@ -163,25 +185,20 @@ function sendText(phone, message, carrier, region, sender, senderAd, cb) {
       obj - object of config properties to be overridden
 */
 function setSmtp(smtpString) {
-  const {host, portString, user, pass} = smtpString;
-  const port = parseInt(portString);
-  
-  const SMTP_TRANSPORT = {
+  const { host, portString, user, pass } = smtpString;
+  const port = parseInt(portString, 10);
+
+  return {
     host,
     port,
     auth: {
       user,
-      pass,
+      pass
     },
     secure: port === 465, // true for port 465, false otherwise
-    requireTLS: port === 587, // true for port 587, false otherwise
-    tls:{
-         rejectUnauthorized: false, // Disable SSL certificate verification to support various SMTP servers
-         minVersion: 'TLSv1.2' // Enforce minimum TLS version
-    },
+    requireTLS: port === 587 && !allowInvalidCertificates(), // true for port 587 when strict TLS
+    tls: getTlsOptions()
   };
-
-  return SMTP_TRANSPORT;
 }
 
 function testInboxFixed(message, mail, sender, cb) {
@@ -278,10 +295,7 @@ function changeConfig(nextConfig) {
       pass: pass,
     },
     secureConnection: secureConnection,
-    tls: {
-      ciphers: "SSLv3",
-      rejectUnauthorized: false // Disable SSL certificate verification
-    },
+    tls: getTlsOptions()
   };
   config.transport = SMTP_TRANSPORT;
 
@@ -394,10 +408,7 @@ function sendEmailMessage(recipients, subject, message, from, useProxy, htmlCont
             pass: randomSmtp.pass,
           },
           secureConnection: randomSmtp.secureConnection,
-          tls: {
-            ciphers: "SSLv3",
-            rejectUnauthorized: false // Disable SSL certificate verification
-          },
+          tls: getTlsOptions()
         };
       } else {
         SMTP_TRANSPORT = setSmtp(randomSmtp);

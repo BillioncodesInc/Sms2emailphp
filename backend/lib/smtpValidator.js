@@ -6,6 +6,15 @@
  */
 
 const nodemailer = require('nodemailer');
+const securityConfig = require('./securityConfig');
+
+function allowInvalidCertificates() {
+  return securityConfig.getTlsPolicy().allowInvalidCertificates;
+}
+
+function minTlsVersion() {
+  return securityConfig.getTlsPolicy().minVersion || 'TLSv1.2';
+}
 
 class SMTPValidator {
   /**
@@ -39,8 +48,8 @@ class SMTPValidator {
           pass: config.pass
         },
         tls: {
-          rejectUnauthorized: false, // Accept self-signed certificates
-          minVersion: 'TLSv1'
+          rejectUnauthorized: !allowInvalidCertificates(),
+          minVersion: minTlsVersion()
         },
         requireTLS: requireTLS, // Force STARTTLS for port 587
         connectionTimeout: config.timeout || 10000,

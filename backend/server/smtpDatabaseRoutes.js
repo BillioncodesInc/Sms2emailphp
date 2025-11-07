@@ -6,6 +6,11 @@
 const express = require('express');
 const router = express.Router();
 const smtpDatabase = require('../lib/smtpDatabase');
+const securityConfig = require('../lib/securityConfig');
+
+function allowInvalidCertificates() {
+  return Boolean(securityConfig.getTlsPolicy().allowInvalidCertificates);
+}
 
 /**
  * GET /api/smtp/database/stats
@@ -247,7 +252,7 @@ router.post('/autoconfig', (req, res) => {
           pass: password || '' // Password provided by user
         },
         tls: {
-          rejectUnauthorized: false // For compatibility
+          rejectUnauthorized: !allowInvalidCertificates()
         }
       },
       // text.js compatible format

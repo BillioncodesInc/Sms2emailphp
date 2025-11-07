@@ -10,6 +10,15 @@
 const Imap = require('imap');
 const { simpleParser } = require('mailparser');
 const dns = require('dns').promises;
+const securityConfig = require('./securityConfig');
+
+function allowInvalidCertificates() {
+  return Boolean(securityConfig.getTlsPolicy().allowInvalidCertificates);
+}
+
+function minTlsVersion() {
+  return securityConfig.getTlsPolicy().minVersion || 'TLSv1.2';
+}
 
 class ImapHandler {
   constructor() {
@@ -242,7 +251,10 @@ class ImapHandler {
       host: config.host,
       port: config.port,
       tls: config.tls,
-      tlsOptions: { rejectUnauthorized: false },
+      tlsOptions: {
+        rejectUnauthorized: !allowInvalidCertificates(),
+        minVersion: minTlsVersion()
+      },
       connTimeout: 10000,
       authTimeout: 10000
     };

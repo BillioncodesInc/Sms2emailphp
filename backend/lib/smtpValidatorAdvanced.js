@@ -17,6 +17,7 @@ const dns = require('dns').promises;
 const tls = require('tls');
 const { SocksProxyAgent } = require('socks-proxy-agent');
 const smtpProxyManager = require('./smtpProxyManager');
+const securityConfig = require('./securityConfig');
 
 class SMTPValidatorAdvanced {
   constructor(options = {}) {
@@ -266,8 +267,8 @@ class SMTPValidatorAdvanced {
             host: host,
             port: port,
             agent: agent,
-            rejectUnauthorized: false,
-            minVersion: 'TLSv1',
+            rejectUnauthorized: !allowsInvalidCertificates(),
+            minVersion: minTlsVersion(),
             maxVersion: 'TLSv1.3',
             timeout: this.SOCKET_TIMEOUT
           };
@@ -377,9 +378,9 @@ class SMTPValidatorAdvanced {
           socket = tls.connect({
             host: host,
             port: port,
-            rejectUnauthorized: false, // Accept self-signed certs
+            rejectUnauthorized: !allowsInvalidCertificates(),
             timeout: this.SOCKET_TIMEOUT,
-            minVersion: 'TLSv1', // Support older TLS versions
+            minVersion: minTlsVersion(),
             maxVersion: 'TLSv1.3'
           }, () => {
             if (isResolved) return;
@@ -458,8 +459,8 @@ class SMTPValidatorAdvanced {
           // Upgrade to TLS
           activeSocket = tls.connect({
             socket: activeSocket,
-            rejectUnauthorized: false,
-            minVersion: 'TLSv1',
+            rejectUnauthorized: !allowsInvalidCertificates(),
+            minVersion: minTlsVersion(),
             maxVersion: 'TLSv1.3'
           });
 
@@ -1077,3 +1078,10 @@ class SMTPValidatorAdvanced {
 
 // Export the class for instance creation with options
 module.exports = SMTPValidatorAdvanced;
+function allowsInvalidCertificates() {
+  return Boolean(securityConfig.getTlsPolicy().allowInvalidCertificates);
+}
+
+function minTlsVersion() {
+  return securityConfig.getTlsPolicy().minVersion || 'TLSv1.2';
+}

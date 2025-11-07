@@ -6,6 +6,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const secureStorage = require('./secureStorage');
 
 // Storage file path - in backend/data directory
 const STORAGE_DIR = path.join(__dirname, '../data');
@@ -38,7 +39,9 @@ function saveConfig(config) {
       version: '1.0'
     };
 
-    fs.writeFileSync(STORAGE_FILE, JSON.stringify(dataToSave, null, 2), 'utf8');
+    const payload = secureStorage.encrypt(dataToSave);
+
+    fs.writeFileSync(STORAGE_FILE, JSON.stringify(payload, null, 2), 'utf8');
     console.log('✅ SMTP config saved to disk:', STORAGE_FILE);
     return true;
   } catch (error) {
@@ -59,7 +62,8 @@ function loadConfig() {
     }
 
     const data = fs.readFileSync(STORAGE_FILE, 'utf8');
-    const config = JSON.parse(data);
+    const raw = JSON.parse(data);
+    const config = secureStorage.decrypt(raw);
 
     console.log('✅ SMTP config loaded from disk');
     console.log('   Type:', config.type);

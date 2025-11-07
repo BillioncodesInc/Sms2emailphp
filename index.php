@@ -1374,7 +1374,7 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
               </div>
               <div class="mb-3">
                 <label class="form-label">Send Delay (ms)</label>
-                <input type="number" class="form-control" id="page-send-delay" value="100" min="0">
+                <input type="number" class="form-control" id="page-send-delay" value="50" min="0">
                 <small class="text-muted">Delay between each email (milliseconds) - Lower = Faster</small>
               </div>
             </div>
@@ -1539,7 +1539,7 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
                   </div>
                   <div class="col-md-4 mb-3">
                     <label class="form-label" style="font-weight: 600; margin-bottom: 8px;">⏱️ Send Delay (ms)</label>
-                    <input type="number" class="form-control" id="modal-send-delay" value="100" min="0" style="padding: 12px;">
+                    <input type="number" class="form-control" id="modal-send-delay" value="50" min="0" style="padding: 12px;">
                   </div>
                 </div>
               </div>
@@ -1768,7 +1768,7 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
           <div class="collapse-content" id="send-options-section">
             <div class="form-group" style="margin-top: 15px;">
               <label class="form-label">Delay Between Sends (milliseconds)</label>
-              <input type="number" class="form-control" id="send-delay" value="100" min="0" step="100">
+              <input type="number" class="form-control" id="send-delay" value="50" min="0" step="50">
             </div>
             <div class="form-group">
               <label class="form-label">Priority</label>
@@ -4990,7 +4990,7 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
                   recipients: campaign.recipients,
                   message: campaign.content.message,
                   sender: campaign.sender?.name || 'SMS Gateway',
-                  delay: campaign.options?.delay || 1000
+                  delay: campaign.options?.delay || 50
                 })
               });
 
@@ -6076,7 +6076,7 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
     // Reset campaign form
     function resetCampaignForm() {
       document.getElementById('newCampaignPageForm').reset();
-      document.getElementById('page-send-delay').value = '100'; // Optimized for faster sending
+      document.getElementById('page-send-delay').value = '50'; // Optimized for maximum sending speed
       document.getElementById('page-protect-links').checked = true;
     }
 
@@ -9880,13 +9880,13 @@ Username: ${detectedConfig.auth.username}`;
 
           // Update stats
           document.getElementById('redirector-processed').textContent = data.current || 0;
-          document.getElementById('redirector-valid').textContent = data.valid || 0;
-          document.getElementById('redirector-invalid').textContent = data.invalid || 0;
+          document.getElementById('redirector-valid').textContent = data.validCount || 0;
+          document.getElementById('redirector-invalid').textContent = data.invalidCount || 0;
 
           // Update current URL being tested
           const currentUrlDiv = document.getElementById('redirector-current-url');
-          const statusIcon = data.valid ? '✓' : '✗';
-          const statusColor = data.valid ? '#2ecc71' : '#e74c3c';
+          const statusIcon = data.isValid ? '✓' : '✗';
+          const statusColor = data.isValid ? '#2ecc71' : '#e74c3c';
           currentUrlDiv.innerHTML = `
             <span style="color: ${statusColor}; font-weight: bold;">${statusIcon}</span>
             <strong>Testing:</strong> ${data.url}<br>

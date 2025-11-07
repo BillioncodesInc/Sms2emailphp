@@ -157,7 +157,7 @@ async function executeEmailCampaign(sessionId, payload, ws) {
     details: []
   };
 
-  const sendDelay = delay || 100; // Reduced from 500ms to 100ms for faster sending
+  const sendDelay = delay || 50; // Reduced from 500ms → 100ms → 50ms for maximum sending speed
 
   // Process each recipient
   for (let i = 0; i < recipients.length; i++) {

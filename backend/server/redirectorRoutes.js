@@ -472,10 +472,10 @@ async function processRedirectorsStreaming(sessionId, rawText, targetLink, testU
           type: 'progress',
           current: progress.completed,
           total: progress.total,
-          valid: sessionState.valid,
-          invalid: sessionState.invalid,
+          validCount: sessionState.valid, // Total valid URLs so far
+          invalidCount: sessionState.invalid, // Total invalid URLs so far
           url: progress.url,
-          valid: progress.result.valid,
+          isValid: progress.result.valid, // Whether THIS URL is valid
           accessible: progress.result.accessible,
           status: progress.result.status,
           finalUrl: progress.result.finalUrl,

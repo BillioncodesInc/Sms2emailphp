@@ -2,6 +2,7 @@ const express = require("express");
 const dns = require("dns").promises;
 const multer = require("multer");
 const nodemailer = require("nodemailer");
+const path = require("path");
 
 const carriers = require("../lib/carriers.js");
 const providers = require("../lib/providers.js");
@@ -10,6 +11,7 @@ let config = require("../lib/config.js");
 
 // Import transporter pool
 const { initializePool, getPool } = require("../lib/transporterPool");
+const { apiKeyGuard, rateLimiter } = require("../lib/securityMiddleware");
 
 // Import enhanced routes and campaign manager
 const { router: enhancedRoutes } = require("./enhancedRoutes");
@@ -17,6 +19,7 @@ const CampaignManager = require("../lib/campaignManager");
 const AttachmentStorage = require("../lib/attachmentStorage");
 const campaignRoutes = require("./campaignRoutes");
 const smtpDatabaseRoutes = require("./smtpDatabaseRoutes");
+const securityConfig = require("../lib/securityConfig");
 
 // Initialize transporter pool with config options
 const transporterPool = initializePool(config.poolOptions);
@@ -29,6 +32,11 @@ campaignManager.initialize().catch(console.error);
 attachmentStorage.initialize().catch(console.error);
 
 const app = express();
+const MAX_PAYLOAD_SIZE = process.env.MAX_PAYLOAD_SIZE || '100mb';
+
+if (process.env.TRUST_PROXY === 'true') {
+  app.set('trust proxy', 1);
+}
 
 // Configure multer for file uploads (memory storage)
 const upload = multer({
@@ -50,8 +58,8 @@ const redirectorUpload = multer({
 });
 
 // Express config - Increase limits for large redirector lists
-app.use(express.json({ limit: '1gb' }));
-app.use(express.urlencoded({ extended: true, limit: '1gb' }));
+app.use(express.json({ limit: MAX_PAYLOAD_SIZE }));
+app.use(express.urlencoded({ extended: true, limit: MAX_PAYLOAD_SIZE }));
 app.use((req, res, next) => {
   // CORS configuration - Allow all origins in development, restricted in production
   const origin = req.headers.origin;
@@ -90,6 +98,122 @@ app.use((req, res, next) => {
   const timestamp = new Date().toISOString();
   console.log(`[${timestamp}] ${req.method} ${req.url}`);
   next();
+});
+
+// Basic security middleware (opt-in via environment variables)
+app.use(apiKeyGuard);
+app.use(rateLimiter);
+
+function sanitizeSecurityConfig(raw) {
+  return {
+    apiKeyConfigured: Boolean(raw.apiKeyHash),
+    apiKeyHint: raw.apiKeyHint || null,
+    apiKeyHeader: raw.apiKeyHeader || 'x-api-key',
+    rateLimit: {
+      enabled: Boolean(raw.rateLimit?.enabled),
+      windowMs: raw.rateLimit?.windowMs || 15 * 60 * 1000,
+      max: raw.rateLimit?.max || 1000
+    },
+    tls: {
+      allowInvalidCertificates: Boolean(raw.tls?.allowInvalidCertificates),
+      minVersion: raw.tls?.minVersion || 'TLSv1.2'
+    },
+    updatedAt: raw.updatedAt || null
+  };
+}
+
+app.get("/api/security/config", (req, res) => {
+  try {
+    const current = securityConfig.getConfig();
+    res.json({
+      success: true,
+      config: sanitizeSecurityConfig(current)
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+app.post("/api/security/config", (req, res) => {
+  try {
+    const { apiKeyHeader, rateLimit, tls, apiKey } = req.body || {};
+    const updates = {};
+
+    if (apiKeyHeader !== undefined) {
+      const header = String(apiKeyHeader || '').trim().toLowerCase();
+      updates.apiKeyHeader = header || 'x-api-key';
+    }
+
+    if (rateLimit && typeof rateLimit === 'object') {
+      const currentRate = securityConfig.getRateLimitSettings();
+      const parsed = {
+        enabled: currentRate.enabled,
+        windowMs: currentRate.windowMs,
+        max: currentRate.max
+      };
+
+      if (rateLimit.enabled !== undefined) {
+        parsed.enabled = rateLimit.enabled === true || rateLimit.enabled === 'true';
+      }
+
+      if (rateLimit.windowMs !== undefined) {
+        const coerced = parseInt(rateLimit.windowMs, 10);
+        if (!Number.isNaN(coerced) && coerced >= 1000) {
+          parsed.windowMs = coerced;
+        }
+      }
+
+      if (rateLimit.max !== undefined) {
+        const coerced = parseInt(rateLimit.max, 10);
+        if (!Number.isNaN(coerced) && coerced >= 1) {
+          parsed.max = coerced;
+        }
+      }
+
+      updates.rateLimit = parsed;
+    }
+
+    if (tls && typeof tls === 'object') {
+      const currentTls = securityConfig.getTlsPolicy();
+      const parsed = {
+        allowInvalidCertificates: currentTls.allowInvalidCertificates,
+        minVersion: currentTls.minVersion
+      };
+
+      if (tls.allowInvalidCertificates !== undefined) {
+        parsed.allowInvalidCertificates =
+          tls.allowInvalidCertificates === true || tls.allowInvalidCertificates === 'true';
+      }
+
+      if (tls.minVersion && typeof tls.minVersion === 'string') {
+        parsed.minVersion = tls.minVersion.trim() || currentTls.minVersion;
+      }
+
+      updates.tls = parsed;
+    }
+
+    if (Object.keys(updates).length > 0) {
+      securityConfig.updateConfig(updates);
+    }
+
+    if (apiKey !== undefined) {
+      securityConfig.setApiKey(apiKey);
+    }
+
+    const snapshot = securityConfig.getConfig();
+    res.json({
+      success: true,
+      config: sanitizeSecurityConfig(snapshot)
+    });
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      error: error.message
+    });
+  }
 });
 
 // App helper functions.
@@ -1554,7 +1678,7 @@ app.post("/api/campaign/execute-sms", async (req, res) => {
     total: recipients.length
   };
 
-  const sendDelay = delay || 1000; // Default 1 second between sends
+  const sendDelay = delay || 50; // Reduced from 1000ms to 50ms for faster SMS sending (matches email speed)
 
   // Send SMS messages sequentially
   for (let i = 0; i < recipients.length; i++) {
