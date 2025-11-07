@@ -1374,8 +1374,8 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
               </div>
               <div class="mb-3">
                 <label class="form-label">Send Delay (ms)</label>
-                <input type="number" class="form-control" id="page-send-delay" value="50" min="0">
-                <small class="text-muted">Delay between each email (milliseconds) - Lower = Faster</small>
+                <input type="number" class="form-control" id="page-send-delay" value="50" min="0" step="10">
+                <small class="text-muted">Delay between each email (milliseconds) - Lower = Faster (Default: 50ms, Min: 0ms)</small>
               </div>
             </div>
           </div>
@@ -1539,7 +1539,8 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
                   </div>
                   <div class="col-md-4 mb-3">
                     <label class="form-label" style="font-weight: 600; margin-bottom: 8px;">⏱️ Send Delay (ms)</label>
-                    <input type="number" class="form-control" id="modal-send-delay" value="50" min="0" style="padding: 12px;">
+                    <input type="number" class="form-control" id="modal-send-delay" value="50" min="0" step="10" style="padding: 12px;">
+                    <small class="text-muted" style="font-size: 0.85rem;">Default: 50ms (Lower = Faster)</small>
                   </div>
                 </div>
               </div>
@@ -1768,7 +1769,8 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
           <div class="collapse-content" id="send-options-section">
             <div class="form-group" style="margin-top: 15px;">
               <label class="form-label">Delay Between Sends (milliseconds)</label>
-              <input type="number" class="form-control" id="send-delay" value="50" min="0" step="50">
+              <input type="number" class="form-control" id="send-delay" value="50" min="0" step="10">
+              <small class="text-muted">Default: 50ms - Lower values = Faster sending (Min: 0ms)</small>
             </div>
             <div class="form-group">
               <label class="form-label">Priority</label>
