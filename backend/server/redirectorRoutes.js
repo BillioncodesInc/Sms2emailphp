@@ -301,9 +301,43 @@ function processRedirectors(rawText, targetLink) {
   };
 }
 
-// ============================================================================
+// ============================================================================ 
 // ROUTES
 // ============================================================================
+
+// Quick processing endpoint (used for previews)
+router.post('/process', async (req, res) => {
+  try {
+    const { rawText, targetLink } = req.body;
+
+    if (!rawText || !targetLink) {
+      return res.status(400).json({
+        success: false,
+        error: 'rawText and targetLink are required'
+      });
+    }
+
+    const result = processRedirectors(rawText, targetLink);
+
+    res.json({
+      success: true,
+      stats: {
+        extracted: result.extracted,
+        prepared: result.prepared,
+        unique: result.unique,
+        final: result.final.length
+      },
+      preview: result.final.slice(0, 10),
+      targetLink: targetLink
+    });
+  } catch (error) {
+    console.error('❌ Error processing redirectors:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
 
 // Get all redirector lists
 router.get('/lists', async (req, res) => {
