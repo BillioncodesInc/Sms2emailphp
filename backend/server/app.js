@@ -498,7 +498,8 @@ app.get("/api/proxy/config", (req, res) => {
     configured: true,
     count: proxyConfig.proxies.length,
     protocol: getStoredProtocol(proxyConfig),
-    lastUpdated: proxyConfig.lastUpdated || null
+    lastUpdated: proxyConfig.lastUpdated || null,
+    proxies: proxyConfig.proxies.map((p, index) => sanitizeProxyForList(p, index))
   });
 });
 
