@@ -197,10 +197,15 @@ function isValidProxy(proxy) {
   return true;
 }
 
+function isValidProxyObject(proxy) {
+  return isValidProxy(proxy);
+}
+
 module.exports = {
   parseProxyString,
   parseProxyArray,
   proxyToUrl,
   proxyToString,
-  isValidProxy
+  isValidProxy,
+  isValidProxyObject
 };

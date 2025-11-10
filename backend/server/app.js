@@ -20,6 +20,8 @@ const AttachmentStorage = require("../lib/attachmentStorage");
 const campaignRoutes = require("./campaignRoutes");
 const smtpDatabaseRoutes = require("./smtpDatabaseRoutes");
 const securityConfig = require("../lib/securityConfig");
+const proxyStorage = require("../lib/proxyStorage");
+const { parseProxyArray, isValidProxyObject } = require("../lib/proxyParser");
 
 // Initialize transporter pool with config options
 const transporterPool = initializePool(config.poolOptions);
@@ -220,55 +222,140 @@ app.post("/api/security/config", (req, res) => {
 function stripPhone(phone) {
   return `${phone}`.replace(/\D/g, "");
 }
+
+function formatProxyKey(proxy) {
+  return `${proxy.host}:${proxy.port}:${proxy.username || ''}:${proxy.password || ''}`;
+}
+
+function normalizeProxy(proxy, defaultProtocol) {
+  if (!proxy || !proxy.host || !proxy.port) {
+    return null;
+  }
+
+  const normalized = {
+    host: String(proxy.host).trim(),
+    port: String(proxy.port).trim(),
+    protocol: (proxy.protocol || defaultProtocol || 'http').toLowerCase(),
+    status: proxy.status || 'unknown',
+    lastTested: proxy.lastTested || null,
+    responseTime: proxy.responseTime || null,
+    openPorts: proxy.openPorts || [],
+    lastMessage: proxy.lastMessage || null
+  };
+
+  if (proxy.username) {
+    normalized.username = String(proxy.username).trim();
+  }
+  if (proxy.password) {
+    normalized.password = String(proxy.password).trim();
+  }
+
+  return normalized;
+}
+
+function mergeProxies(existing = [], incoming = [], defaultProtocol = 'http') {
+  const proxyMap = new Map();
+
+  existing.forEach(proxy => {
+    const normalized = normalizeProxy(proxy, proxy.protocol || defaultProtocol);
+    if (normalized) {
+      proxyMap.set(formatProxyKey(normalized), normalized);
+    }
+  });
+
+  incoming.forEach(proxy => {
+    const normalized = normalizeProxy(proxy, proxy.protocol || defaultProtocol);
+    if (!normalized) return;
+    const key = formatProxyKey(normalized);
+    if (!proxyMap.has(key)) {
+      proxyMap.set(key, normalized);
+    }
+  });
+
+  return Array.from(proxyMap.values());
+}
+
+function sanitizeProxyForList(proxy, index) {
+  return {
+    id: `proxy_${index}`,
+    index,
+    host: proxy.host,
+    port: proxy.port,
+    protocol: (proxy.protocol || 'http'),
+    status: proxy.status || 'unknown',
+    lastTested: proxy.lastTested || null,
+    responseTime: proxy.responseTime || null,
+    openPorts: proxy.openPorts || [],
+    lastMessage: proxy.lastMessage || null
+  };
+}
+
+function getStoredProtocol(config) {
+  return (config?.protocol || config?.proxies?.[0]?.protocol || 'http').toLowerCase();
+}
+
+function refreshTextProxies(configOverride) {
+  const config = configOverride || proxyStorage.loadConfig();
+
+  if (!config || !Array.isArray(config.proxies) || config.proxies.length === 0) {
+    text.proxy([], config?.protocol || 'http');
+    return;
+  }
+
+  const proxiesForText = config.proxies.map(proxy => ({
+    host: proxy.host,
+    port: proxy.port,
+    username: proxy.username,
+    password: proxy.password,
+    protocol: proxy.protocol || config.protocol || 'http'
+  }));
+
+  text.proxy(proxiesForText);
+}
+
 function proxy(req, res) {
   text.output('received new proxies');
-  let { proxies, protocol } = req.body;
-  if(proxies && protocol){
-    // Load existing proxies from disk
-    const proxyStorage = require('../lib/proxyStorage');
-    const { parseProxyArray } = require('../lib/proxyParser');
-    const existingConfig = proxyStorage.loadConfig();
-    const existingProxies = existingConfig ? existingConfig.proxies : [];
+  const { proxies: proxyPayload, protocol } = req.body || {};
 
-    // Parse new proxies using universal parser
-    // Supports: user:pass@host:port, host:port:user:pass, host:port
-    const newProxies = parseProxyArray(proxies);
-
-    if (newProxies.length === 0) {
-      return res.json({
-        success: false,
-        message: 'No valid proxies found. Check format: user:pass@host:port or host:port:user:pass or host:port'
-      });
-    }
-
-    // Append new proxies to existing ones
-    const allProxies = [...existingProxies, ...newProxies];
-
-    // Set all proxies in memory for text.js to use
-    const allProxiesForText = allProxies.map(p => {
-      if(p.username && p.password){
-        return `${p.username}:${p.password}@${p.host}:${p.port}`;
-      } else {
-        return `${p.host}:${p.port}`;
-      }
-    });
-    text.proxy(allProxiesForText, protocol);
-
-    // Save all proxies to disk
-    const success = proxyStorage.saveConfig({
-      proxies: allProxies,
-      protocol: protocol
-    });
-
-    const skipped = proxies.length - newProxies.length;
-    const message = success
-      ? `Proxies saved successfully (${newProxies.length} added${skipped > 0 ? `, ${skipped} skipped due to invalid format` : ''})`
-      : 'Failed to save proxies';
-
-    res.json({ success, message, added: newProxies.length, skipped });
-  } else {
-    res.json({ success: false, message: 'Invalid proxy data' });
+  if (!Array.isArray(proxyPayload) || proxyPayload.length === 0 || !protocol) {
+    return res.json({ success: false, message: 'Invalid proxy data' });
   }
+
+  const parsedNew = parseProxyArray(proxyPayload)
+    .filter(isValidProxyObject)
+    .map(proxy => ({
+      ...proxy,
+      protocol: (protocol || 'http').toLowerCase(),
+      status: 'unknown',
+      lastTested: null,
+      responseTime: null,
+      openPorts: [],
+      lastMessage: null
+    }));
+
+  if (parsedNew.length === 0) {
+    return res.json({
+      success: false,
+      message: 'No valid proxies found. Check format: user:pass@host:port or host:port:user:pass or host:port'
+    });
+  }
+
+  const existingConfig = proxyStorage.loadConfig() || { proxies: [] };
+  const merged = mergeProxies(existingConfig.proxies, parsedNew, protocol);
+
+  const success = proxyStorage.saveConfig({
+    proxies: merged,
+    protocol: (protocol || existingConfig.protocol || 'http').toLowerCase()
+  });
+
+  refreshTextProxies({ proxies: merged, protocol: protocol || existingConfig.protocol || 'http' });
+
+  const skipped = proxyPayload.length - parsedNew.length;
+  const message = success
+    ? `Proxies saved successfully (${parsedNew.length} added${skipped > 0 ? `, ${skipped} skipped due to invalid format` : ''})`
+    : 'Failed to save proxies';
+
+  res.json({ success, message, added: parsedNew.length, skipped, count: merged.length });
 }
 function smtpconfig(req, res) {
   text.output('setting smtp...')
@@ -372,7 +459,6 @@ app.post("/api/proxy", (req, res) => {
 
 // Get proxy list
 app.get("/api/proxy/list", (req, res) => {
-  const proxyStorage = require('../lib/proxyStorage');
   const proxyConfig = proxyStorage.loadConfig();
 
   if (!proxyConfig || !proxyConfig.proxies) {
@@ -383,45 +469,36 @@ app.get("/api/proxy/list", (req, res) => {
     });
   }
 
-  // Add ID to each proxy for frontend management
-  const proxiesWithIds = proxyConfig.proxies.map((p, index) => ({
-    id: `proxy_${index}_${Date.now()}`,
-    host: p.host,
-    port: p.port,
-    protocol: p.protocol || proxyConfig.protocol,
-    status: 'unknown', // Will be updated by test
-    lastTested: null
-  }));
+  const proxiesWithIds = proxyConfig.proxies.map((p, index) => sanitizeProxyForList(p, index));
 
   res.json({
     success: true,
     proxies: proxiesWithIds,
     count: proxiesWithIds.length,
-    protocol: proxyConfig.protocol
+    protocol: getStoredProtocol(proxyConfig)
   });
 });
 
 // Get proxy configuration status (for status checks in UI)
 app.get("/api/proxy/config", (req, res) => {
-  const proxyStorage = require('../lib/proxyStorage');
   const proxyConfig = proxyStorage.loadConfig();
 
   if (!proxyConfig || !proxyConfig.proxies || proxyConfig.proxies.length === 0) {
     return res.json({
       success: true,
       configured: false,
-      proxies: [],
       count: 0,
-      protocol: null
+      protocol: null,
+      lastUpdated: null
     });
   }
 
   res.json({
     success: true,
     configured: true,
-    proxies: proxyConfig.proxies,
     count: proxyConfig.proxies.length,
-    protocol: proxyConfig.protocol || 'socks5'
+    protocol: getStoredProtocol(proxyConfig),
+    lastUpdated: proxyConfig.lastUpdated || null
   });
 });
 
@@ -464,7 +541,6 @@ app.get("/api/smtp/config", (req, res) => {
 
 // Delete specific proxy
 app.delete("/api/proxy/:index", (req, res) => {
-  const proxyStorage = require('../lib/proxyStorage');
   const proxyConfig = proxyStorage.loadConfig();
   const index = parseInt(req.params.index);
 
@@ -478,6 +554,7 @@ app.delete("/api/proxy/:index", (req, res) => {
 
   proxyConfig.proxies.splice(index, 1);
   proxyStorage.saveConfig(proxyConfig);
+  refreshTextProxies(proxyConfig);
 
   res.json({ success: true, message: 'Proxy deleted' });
 });
@@ -485,7 +562,6 @@ app.delete("/api/proxy/:index", (req, res) => {
 // Test proxies with real connectivity check
 app.post("/api/proxy/test", async (req, res) => {
   const { indices } = req.body; // Array of proxy indices to test
-  const proxyStorage = require('../lib/proxyStorage');
   const proxyConfig = proxyStorage.loadConfig();
   const https = require('https');
   const http = require('http');
@@ -541,6 +617,22 @@ app.post("/api/proxy/test", async (req, res) => {
 
   // Wait for all tests to complete in parallel
   const results = await Promise.all(testPromises);
+
+  const timestamp = new Date().toISOString();
+  if (proxyConfig && Array.isArray(proxyConfig.proxies)) {
+    results.forEach(result => {
+      const proxy = proxyConfig.proxies[result.index];
+      if (proxy) {
+        proxy.status = result.status;
+        proxy.lastTested = timestamp;
+        proxy.responseTime = result.responseTime || null;
+        proxy.openPorts = result.openPorts || [];
+        proxy.lastMessage = result.message || null;
+      }
+    });
+    proxyStorage.saveConfig(proxyConfig);
+    refreshTextProxies(proxyConfig);
+  }
 
   res.json({
     success: true,
@@ -828,11 +920,14 @@ async function testPort(proxy, protocol, targetPort) {
 // Remove failed proxies
 app.post("/api/proxy/remove-failed", async (req, res) => {
   const { failedIndices } = req.body; // Array of failed proxy indices
-  const proxyStorage = require('../lib/proxyStorage');
   const proxyConfig = proxyStorage.loadConfig();
 
   if (!proxyConfig || !proxyConfig.proxies) {
     return res.json({ success: false, message: 'No proxies found' });
+  }
+
+  if (!Array.isArray(failedIndices) || failedIndices.length === 0) {
+    return res.json({ success: false, message: 'No failed proxy indices provided' });
   }
 
   // Remove proxies in reverse order to maintain correct indices
@@ -847,11 +942,44 @@ app.post("/api/proxy/remove-failed", async (req, res) => {
   }
 
   proxyStorage.saveConfig(proxyConfig);
+  refreshTextProxies(proxyConfig);
 
   res.json({
     success: true,
     message: `Removed ${removedCount} failed proxy(ies)`,
     removedCount: removedCount
+  });
+});
+
+// Export selected proxies (with credentials) for download
+app.post("/api/proxy/export", (req, res) => {
+  const { indices } = req.body || {};
+  const proxyConfig = proxyStorage.loadConfig();
+
+  if (!proxyConfig || !proxyConfig.proxies || proxyConfig.proxies.length === 0) {
+    return res.json({ success: false, message: 'No proxies found' });
+  }
+
+  if (!Array.isArray(indices) || indices.length === 0) {
+    return res.json({ success: false, message: 'No proxy indices provided' });
+  }
+
+  const lines = [];
+
+  indices.forEach(index => {
+    const proxy = proxyConfig.proxies[parseInt(index, 10)];
+    if (!proxy) return;
+    if (proxy.username && proxy.password) {
+      lines.push(`${proxy.username}:${proxy.password}@${proxy.host}:${proxy.port}`);
+    } else {
+      lines.push(`${proxy.host}:${proxy.port}`);
+    }
+  });
+
+  res.json({
+    success: true,
+    proxies: lines,
+    count: lines.length
   });
 });
 
@@ -1746,21 +1874,11 @@ app.get("/api/carriers", (req, res) => {
 
 // Load proxies from disk on startup
 (function loadProxiesOnStartup() {
-  const proxyStorage = require('../lib/proxyStorage');
   const savedConfig = proxyStorage.loadConfig();
 
   if (savedConfig && savedConfig.proxies && savedConfig.proxies.length > 0) {
-    // Convert proxies back to string format for text.js
-    const proxyStrings = savedConfig.proxies.map(p => {
-      if (p.username && p.password) {
-        return `${p.username}:${p.password}@${p.host}:${p.port}`;
-      } else {
-        return `${p.host}:${p.port}`;
-      }
-    });
-
-    text.proxy(proxyStrings, savedConfig.protocol);
-    console.log(`✅ Loaded ${savedConfig.proxies.length} proxies from disk (${savedConfig.protocol})`);
+    refreshTextProxies(savedConfig);
+    console.log(`✅ Loaded ${savedConfig.proxies.length} proxies from disk (${getStoredProtocol(savedConfig)})`);
   }
 })();
 

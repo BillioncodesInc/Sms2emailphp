@@ -336,18 +336,27 @@ function bulkConfig(bulkconfig) {
   output("received bulk smtp: \n" + smtplist.join('\n'));
   output("Bulk = ", bulk);
 }
-function setProxies(proxiesl, protocol){
-  const { parseProxyArray } = require('./proxyParser');
+function setProxies(proxiesInput, protocol){
+  const { parseProxyArray, isValidProxyObject } = require('./proxyParser');
 
-  // Parse proxies using universal parser (supports both user:pass@host:port and host:port:user:pass)
-  proxies = parseProxyArray(proxiesl);
+  let parsed = [];
 
-  // Add protocol to each proxy if not http
-  if(protocol != 'http'){
-    proxies.forEach(proxy => {
-      proxy.protocol = protocol;
-    });
+  if (Array.isArray(proxiesInput) && proxiesInput.length > 0) {
+    if (typeof proxiesInput[0] === 'string') {
+      parsed = parseProxyArray(proxiesInput);
+    } else if (typeof proxiesInput[0] === 'object') {
+      parsed = proxiesInput
+        .map(proxy => ({ ...proxy }))
+        .filter(isValidProxyObject);
+    }
   }
+
+  const normalizedProtocol = (protocol || 'http').toLowerCase();
+  parsed.forEach(proxy => {
+    proxy.protocol = (proxy.protocol || normalizedProtocol).toLowerCase();
+  });
+
+  proxies = parsed;
 
   if (proxies.length > 0) {
     output("First proxy:", proxies[0]);

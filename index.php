@@ -6251,6 +6251,7 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
     let failedProxyIndices = [];
     let proxyCurrentPage = 1;
     let proxyItemsPerPage = 20;
+    let selectedProxyIndices = new Set();
 
     // Load proxies list from backend with pagination
     async function loadProxiesList(page = proxyCurrentPage) {
@@ -6267,13 +6268,17 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
           document.getElementById('testProxiesBtn').style.display = 'none';
           document.getElementById('removeFailedBtn').style.display = 'none';
           document.getElementById('deleteSelectedBtn').style.display = 'none';
+          document.getElementById('downloadProxiesBtn').style.display = 'none';
           currentProxies = [];
+          selectedProxyIndices = new Set();
           return;
         }
 
         currentProxies = data.proxies;
         count.textContent = data.count;
         proxyCurrentPage = page;
+        const filteredSelection = Array.from(selectedProxyIndices).filter(index => index < currentProxies.length);
+        selectedProxyIndices = new Set(filteredSelection);
 
         // Calculate pagination
         const totalPages = Math.ceil(data.proxies.length / proxyItemsPerPage);
@@ -6285,6 +6290,36 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
         document.getElementById('testProxiesBtn').style.display = 'block';
 
         // Render proxy list with checkboxes
+        const rowsHtml = paginatedProxies.map((proxy, paginatedIndex) => {
+          const actualIndex = startIndex + paginatedIndex;
+          const isChecked = selectedProxyIndices.has(actualIndex) ? 'checked' : '';
+          const statusMeta = getProxyStatusMeta(proxy);
+          const portsHtml = getProxyPortsHtml(proxy);
+          return `
+          <div class="proxy-row" data-index="${actualIndex}" style="display: flex; align-items: center; padding: 15px 20px; border-bottom: 1px solid rgba(255,255,255,0.1); transition: background 0.2s;">
+            <input type="checkbox" class="proxy-checkbox" data-index="${actualIndex}" onchange="handleProxyCheckboxChange(this)" style="margin-right: 15px; width: 18px; height: 18px; cursor: pointer;" ${isChecked}>
+            <div style="flex: 1; display: flex; align-items: center; gap: 15px;">
+              <div style="flex: 1;">
+                <div style="font-weight: 600; margin-bottom: 4px;">${proxy.host}:${proxy.port}</div>
+                <div style="font-size: 0.85rem; color: rgba(255,255,255,0.6); display: flex; align-items: center; gap: 8px;">
+                  <span style="background: rgba(99, 102, 241, 0.2); padding: 2px 8px; border-radius: 4px; margin-right: 8px;">${(proxy.protocol || '').toUpperCase()}</span>
+                  <span id="proxy-status-${actualIndex}" style="padding: 2px 8px; border-radius: 4px; ${statusMeta.style}">
+                    ${statusMeta.html}
+                  </span>
+                </div>
+                ${proxy.lastTested ? `<div style="font-size: 0.75rem; color: rgba(255,255,255,0.45); margin-top: 2px;">Last tested: ${new Date(proxy.lastTested).toLocaleString()}</div>` : ''}
+              </div>
+              <div id="proxy-ports-${actualIndex}" style="width: 200px; font-size: 0.85rem; color: rgba(255,255,255,0.6);">
+                ${portsHtml}
+              </div>
+              <button class="btn btn-sm btn-outline" onclick="deleteProxy(${actualIndex})" style="padding: 6px 12px;">
+                <i class="fas fa-trash"></i>
+              </button>
+            </div>
+          </div>
+        `;
+        }).join('');
+
         container.innerHTML = `
           <div style="padding: 0;">
             <div style="display: flex; align-items: center; padding: 12px 20px; background: rgba(255,255,255,0.05); border-bottom: 1px solid rgba(255,255,255,0.1);">
@@ -6292,31 +6327,7 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
               <label for="selectAllProxies" style="margin: 0; cursor: pointer; user-select: none; flex: 1;">Select All (Page)</label>
               <div style="width: 200px; font-weight: 600; font-size: 0.9rem;">Open Mail Ports</div>
             </div>
-            ${paginatedProxies.map((proxy, paginatedIndex) => {
-              const actualIndex = startIndex + paginatedIndex;
-              return `
-              <div class="proxy-row" data-index="${actualIndex}" style="display: flex; align-items: center; padding: 15px 20px; border-bottom: 1px solid rgba(255,255,255,0.1); transition: background 0.2s;">
-                <input type="checkbox" class="proxy-checkbox" data-index="${actualIndex}" onchange="updateProxySelection()" style="margin-right: 15px; width: 18px; height: 18px; cursor: pointer;">
-                <div style="flex: 1; display: flex; align-items: center; gap: 15px;">
-                  <div style="flex: 1;">
-                    <div style="font-weight: 600; margin-bottom: 4px;">${proxy.host}:${proxy.port}</div>
-                    <div style="font-size: 0.85rem; color: rgba(255,255,255,0.6);">
-                      <span style="background: rgba(99, 102, 241, 0.2); padding: 2px 8px; border-radius: 4px; margin-right: 8px;">${proxy.protocol.toUpperCase()}</span>
-                      <span id="proxy-status-${actualIndex}" style="padding: 2px 8px; border-radius: 4px; background: rgba(156, 163, 175, 0.2);">
-                        <i class="fas fa-question-circle"></i> Unknown
-                      </span>
-                    </div>
-                  </div>
-                  <div id="proxy-ports-${actualIndex}" style="width: 200px; font-size: 0.85rem; color: rgba(255,255,255,0.6);">
-                    -
-                  </div>
-                  <button class="btn btn-sm btn-outline" onclick="deleteProxy(${actualIndex})" style="padding: 6px 12px;">
-                    <i class="fas fa-trash"></i>
-                  </button>
-                </div>
-              </div>
-            `;
-            }).join('')}
+            ${rowsHtml}
           </div>
           ${totalPages > 1 ? `
           <div style="padding: 20px; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid rgba(255,255,255,0.1);">
@@ -6341,6 +6352,8 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
           </div>
           ` : ''}
         `;
+
+        updateProxySelectionUI();
       } catch (error) {
         console.error('Failed to load proxies:', error);
         const container = document.getElementById('proxyListContainer');
@@ -6348,26 +6361,71 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
       }
     }
 
-    // Toggle select all checkboxes
-    function toggleSelectAll(checkbox) {
-      const checkboxes = document.querySelectorAll('.proxy-checkbox');
-      checkboxes.forEach(cb => {
-        cb.checked = checkbox.checked;
-      });
-      updateProxySelection();
+    function getProxyStatusMeta(proxy) {
+      const status = (proxy.status || 'unknown').toLowerCase();
+      const response = proxy.responseTime ? ` (${proxy.responseTime}ms)` : '';
+
+      switch (status) {
+        case 'online':
+          return {
+            html: `<i class="fas fa-check-circle"></i> Online${response}`,
+            style: 'background: rgba(16, 185, 129, 0.2); color: #10b981;'
+          };
+        case 'failed':
+          return {
+            html: '<i class="fas fa-times-circle"></i> Failed',
+            style: 'background: rgba(239, 68, 68, 0.2); color: #ef4444;'
+          };
+        default:
+          return {
+            html: '<i class="fas fa-question-circle"></i> Unknown',
+            style: 'background: rgba(156, 163, 175, 0.2); color: rgba(156,163,175,1);'
+          };
+      }
     }
 
-    // Update selection state and button visibility
-    function updateProxySelection() {
-      const checkboxes = document.querySelectorAll('.proxy-checkbox:checked');
+    function getProxyPortsHtml(proxy) {
+      if (Array.isArray(proxy.openPorts) && proxy.openPorts.length > 0) {
+        return proxy.openPorts.map(port => {
+          const label = typeof port === 'object' && port !== null
+            ? `${port.port || ''}${port.responseTime ? ` (${port.responseTime}ms)` : ''}`
+            : port;
+          return `<span style="background: rgba(16, 185, 129, 0.2); color: #10b981; padding: 2px 6px; border-radius: 4px; margin-right: 4px; display: inline-block; margin-bottom: 2px;">${label}</span>`;
+        }).join('');
+      }
+      return '<span style="color: rgba(239, 68, 68, 0.8);">None open</span>';
+    }
+
+    function handleProxyCheckboxChange(checkbox, skipUpdate = false) {
+      const index = parseInt(checkbox.dataset.index);
+
+      if (checkbox.checked) {
+        selectedProxyIndices.add(index);
+      } else {
+        selectedProxyIndices.delete(index);
+        if (!skipUpdate) {
+          const selectAll = document.getElementById('selectAllProxies');
+          if (selectAll) {
+            selectAll.checked = false;
+          }
+        }
+      }
+
+      if (!skipUpdate) {
+        updateProxySelectionUI();
+      }
+    }
+
+    function updateProxySelectionUI() {
+      const selectionCount = selectedProxyIndices.size;
       const testBtn = document.getElementById('testProxiesBtn');
       const downloadBtn = document.getElementById('downloadProxiesBtn');
       const deleteSelectedBtn = document.getElementById('deleteSelectedBtn');
 
-      if (checkboxes.length > 0) {
-        testBtn.innerHTML = `<i class="fas fa-check-circle"></i> Test Selected (${checkboxes.length})`;
-        downloadBtn.innerHTML = `<i class="fas fa-download"></i> Download Selected (${checkboxes.length})`;
-        deleteSelectedBtn.innerHTML = `<i class="fas fa-trash-alt"></i> Delete Selected (${checkboxes.length})`;
+      if (selectionCount > 0) {
+        testBtn.innerHTML = `<i class="fas fa-check-circle"></i> Test Selected (${selectionCount})`;
+        downloadBtn.innerHTML = `<i class="fas fa-download"></i> Download Selected (${selectionCount})`;
+        deleteSelectedBtn.innerHTML = `<i class="fas fa-trash-alt"></i> Delete Selected (${selectionCount})`;
         downloadBtn.style.display = 'block';
         deleteSelectedBtn.style.display = 'block';
       } else {
@@ -6377,16 +6435,25 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
       }
     }
 
+    // Toggle select all checkboxes
+    function toggleSelectAll(checkbox) {
+      const checkboxes = document.querySelectorAll('.proxy-checkbox');
+      checkboxes.forEach(cb => {
+        cb.checked = checkbox.checked;
+        handleProxyCheckboxChange(cb, true);
+      });
+      updateProxySelectionUI();
+    }
+
     // Test selected proxies with real-time updates
     async function testSelectedProxies() {
-      const checkboxes = document.querySelectorAll('.proxy-checkbox:checked');
+      const indices = Array.from(selectedProxyIndices).filter(index => currentProxies[index]);
 
-      if (checkboxes.length === 0) {
+      if (indices.length === 0) {
         showProxyPageResponse('Please select at least one proxy to test', 'warning');
         return;
       }
 
-      const indices = Array.from(checkboxes).map(cb => parseInt(cb.dataset.index));
       let testedCount = 0;
       const totalCount = indices.length;
 
@@ -6402,6 +6469,8 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
             statusElement.style.color = '#3b82f6';
           }
         });
+
+        failedProxyIndices = [];
 
         // Add timeout to fetch (3 minutes for testing multiple proxies)
         const controller = new AbortController();
@@ -6463,7 +6532,9 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
                 statusElement.style.background = 'rgba(239, 68, 68, 0.2)';
                 statusElement.style.color = '#ef4444';
                 statusElement.title = result.message || 'Proxy connection failed';
-                failedProxyIndices.push(result.index);
+                if (!failedProxyIndices.includes(result.index)) {
+                  failedProxyIndices.push(result.index);
+                }
 
                 // Clear ports display
                 if (portsElement) {
@@ -6508,36 +6579,28 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
 
     // Download selected proxies
     async function downloadSelectedProxies() {
-      const checkboxes = document.querySelectorAll('.proxy-checkbox:checked');
+      const indices = Array.from(selectedProxyIndices).filter(index => currentProxies[index]);
 
-      if (checkboxes.length === 0) {
+      if (indices.length === 0) {
         showProxyPageResponse('Please select at least one proxy to download', 'warning');
         return;
       }
 
       try {
-        // Get proxy data from backend
-        const response = await fetch(`${API_LEGACY}/proxy`);
-        const data = await response.json();
+        const response = await fetch(`${API_LEGACY}/proxy/export`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ indices })
+        });
 
-        if (!data.success || !data.proxies) {
-          showProxyPageResponse('Failed to fetch proxy data', 'danger');
+        const result = await response.json();
+
+        if (!result.success || !result.proxies || result.proxies.length === 0) {
+          showProxyPageResponse('Failed to download proxies. Please try again.', 'danger');
           return;
         }
 
-        const selectedIndices = Array.from(checkboxes).map(cb => parseInt(cb.dataset.index));
-        const selectedProxies = data.proxies.filter((_, idx) => selectedIndices.includes(idx));
-
-        // Convert proxies to text format
-        const proxyLines = selectedProxies.map(p => {
-          if (p.username && p.password) {
-            return `${p.host}:${p.port}:${p.username}:${p.password}`;
-          } else {
-            return `${p.host}:${p.port}`;
-          }
-        });
-
-        const content = proxyLines.join('\n');
+        const content = result.proxies.join('\n');
         const filename = `proxies_${Date.now()}.txt`;
 
         // Create download
@@ -6551,7 +6614,7 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
 
-        showProxyPageResponse(`Downloaded ${selectedProxies.length} proxy(ies) to ${filename}`, 'success');
+        showProxyPageResponse(`Downloaded ${result.proxies.length} proxy(ies) to ${filename}`, 'success');
       } catch (error) {
         console.error('Download proxies error:', error);
         showProxyPageResponse('Failed to download proxies: ' + error.message, 'danger');
@@ -6573,7 +6636,7 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
         const response = await fetch(`${API_LEGACY}/proxy/remove-failed`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ failedIndices: failedProxyIndices })
+          body: JSON.stringify({ failedIndices: Array.from(new Set(failedProxyIndices)) })
         });
 
         const data = await response.json();
@@ -6581,6 +6644,7 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
         if (data.success) {
           showProxyPageResponse(data.message, 'success');
           failedProxyIndices = [];
+          selectedProxyIndices = new Set();
           document.getElementById('removeFailedBtn').style.display = 'none';
           loadProxiesList();
         } else {
@@ -6607,6 +6671,8 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
 
         if (data.success) {
           showProxyPageResponse('Proxy deleted successfully', 'success');
+          selectedProxyIndices = new Set();
+          updateProxySelectionUI();
           loadProxiesList();
         } else {
           showProxyPageResponse('Failed to delete proxy: ' + data.message, 'danger');
@@ -6619,18 +6685,17 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
 
     // Delete selected proxies
     async function deleteSelectedProxies() {
-      const checkboxes = document.querySelectorAll('.proxy-checkbox:checked');
+      const indices = Array.from(selectedProxyIndices).filter(index => currentProxies[index]);
 
-      if (checkboxes.length === 0) {
+      if (indices.length === 0) {
         showProxyPageResponse('Please select at least one proxy to delete', 'warning');
         return;
       }
 
-      if (!confirm(`Delete ${checkboxes.length} selected proxy(ies)?`)) {
+      if (!confirm(`Delete ${indices.length} selected proxy(ies)?`)) {
         return;
       }
 
-      const indices = Array.from(checkboxes).map(cb => parseInt(cb.dataset.index));
       let deletedCount = 0;
       let errorCount = 0;
 
@@ -6664,6 +6729,8 @@ $carriers = array('uscellular','sprint','cellone','cellularone','gci','flat','te
         showProxyPageResponse(`Deleted ${deletedCount} proxy(ies), ${errorCount} failed`, 'warning');
       }
 
+      selectedProxyIndices = new Set();
+      updateProxySelectionUI();
       loadProxiesList();
     }
 
